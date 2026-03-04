@@ -15,7 +15,7 @@ def load_system_prompt() -> str:
     base = base_path.read_text(encoding="utf-8")
 
     skill_prompts: list[str] = []
-    for p in sorted(SKILLS_DIR.rglob("prompt.txt")):
+    for p in sorted(SKILLS_DIR.rglob("prompt.md")):
         skill_name = p.parent.name
         content = p.read_text(encoding="utf-8").strip()
         if content:

@@ -19,6 +19,7 @@ dependencies = [
     "tavily-python>=0.5",
     "newsapi-python>=0.2",
     "rank-bm25>=0.2",
+    "jieba>=0.42",
     "onnxruntime>=1.17",
     "transformers>=4.40",
     "numpy>=1.26",
@@ -53,3 +54,7 @@ select = ["E", "F", "I", "UP"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[[tool.uv.index]]
+url="https://pypi.tuna.tsinghua.edu.cn/simple"
+default=true

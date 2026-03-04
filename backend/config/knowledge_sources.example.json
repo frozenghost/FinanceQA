@@ -1,0 +1,100 @@
+{
+  "_comment": "知识库数据源配置示例 - 复制为 knowledge_sources.json 并根据需求修改",
+  
+  "sources": [
+    {
+      "_comment": "静态网页抓取 - 适用于金融教育网站、文档页面",
+      "name": "static_web_pages",
+      "type": "web",
+      "enabled": true,
+      "fetcher": "WebPageFetcher",
+      "config": {
+        "urls": [
+          "https://corporatefinanceinstitute.com/resources/valuation/price-earnings-ratio/",
+          "https://www.investor.gov/introduction-investing/investing-basics/investment-products"
+        ],
+        "timeout": 30,
+        "retry_count": 3
+      }
+    },
+    
+    {
+      "_comment": "维基百科文章 - 自动检测中英文",
+      "name": "wikipedia_articles",
+      "type": "wiki",
+      "enabled": true,
+      "fetcher": "WikipediaFetcher",
+      "config": {
+        "queries": [
+          "市盈率",
+          "Price–earnings ratio",
+          "EBITDA"
+        ],
+        "max_docs_per_query": 1
+      }
+    },
+    
+    {
+      "_comment": "Yahoo Finance 财务数据",
+      "name": "company_earnings",
+      "type": "earnings",
+      "enabled": true,
+      "fetcher": "YahooFinanceFetcher",
+      "config": {
+        "tickers": ["AAPL", "TSLA", "BABA"],
+        "data_fields": [
+          "trailingPE",
+          "priceToBook",
+          "trailingEps",
+          "totalRevenue",
+          "profitMargins",
+          "returnOnEquity",
+          "industry"
+        ]
+      }
+    },
+    
+    {
+      "_comment": "Tavily 网络搜索 - 需要 API key",
+      "name": "web_search_results",
+      "type": "tavily",
+      "enabled": false,
+      "fetcher": "TavilyFetcher",
+      "config": {
+        "queries": [
+          "阿里巴巴最新季度财报摘要",
+          "特斯拉季报要点"
+        ],
+        "max_results_per_query": 3,
+        "search_depth": "advanced"
+      }
+    },
+    
+    {
+      "_comment": "本地文件加载 - 支持 txt, md, docx, pdf",
+      "name": "local_documents",
+      "type": "local_file",
+      "enabled": true,
+      "fetcher": "LocalFileFetcher",
+      "config": {
+        "base_directory": "${KNOWLEDGE_FILES_DIR}",
+        "supported_extensions": [".txt", ".md", ".docx", ".pdf"],
+        "recursive": true,
+        "encoding": "utf-8"
+      }
+    }
+  ],
+  
+  "chunking": {
+    "_comment": "文档分块配置",
+    "chunk_size": 1024,
+    "chunk_overlap": 128,
+    "separators": ["\n\n", "\n", "。", ".", "!", "?", "；", ";", " "]
+  },
+  
+  "vectordb": {
+    "_comment": "向量数据库配置",
+    "collection_name": "finance_knowledge",
+    "persist_directory": "${CHROMA_DIR}"
+  }
+}

@@ -57,17 +57,25 @@ def _get_vectordb():
 
 
 def _bm25_search(query: str, documents: list[dict[str, Any]], top_k: int = 10) -> list[dict]:
-    """BM25 keyword-based search over document texts."""
+    """BM25 keyword-based search over document texts with improved tokenization."""
     from rank_bm25 import BM25Okapi
+    import jieba
 
     if not documents:
         return []
 
     corpus = [doc["page_content"] for doc in documents]
-    tokenized_corpus = [doc.split() for doc in corpus]
+    
+    # 改进分词：中文用jieba，英文用空格
+    def tokenize(text: str) -> list[str]:
+        if any('\u4e00' <= c <= '\u9fff' for c in text):
+            return list(jieba.cut_for_search(text))
+        return text.lower().split()
+    
+    tokenized_corpus = [tokenize(doc) for doc in corpus]
     bm25 = BM25Okapi(tokenized_corpus)
 
-    tokenized_query = query.split()
+    tokenized_query = tokenize(query)
     scores = bm25.get_scores(tokenized_query)
 
     scored_docs = list(zip(scores, documents))
@@ -75,8 +83,8 @@ def _bm25_search(query: str, documents: list[dict[str, Any]], top_k: int = 10) -
     return [doc for _, doc in scored_docs[:top_k]]
 
 
-def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[int]:
-    """Rerank using BGE-reranker-v2-m3 (ONNX). Returns indices of top_n documents."""
+def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[tuple[int, float]]:
+    """Rerank using BGE-reranker-v2-m3 (ONNX). Returns list of (index, score) tuples."""
     if not documents:
         return []
 
@@ -84,7 +92,7 @@ def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[int]:
         session, tokenizer = _get_reranker()
 
         # Build query-document pairs for cross-encoder scoring
-        pairs = [[query, doc] for doc in documents]
+        pairs = [[query, doc[:512]] for doc in documents]  # 截断过长文本
         inputs = tokenizer(
             pairs,
             padding=True,
@@ -98,17 +106,20 @@ def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[int]:
         outputs = session.run(None, ort_inputs)
 
         # BGE reranker outputs logits; higher = more relevant
-        scores = outputs[0].flatten()
+        scores = outputs[0]
         if len(scores.shape) > 1:
             scores = scores[:, 0]
+        scores = scores.flatten()
 
-        # Return indices sorted by score descending
-        ranked_indices = np.argsort(scores)[::-1][:top_n].tolist()
-        return ranked_indices
+        # Return (index, score) pairs sorted by score descending
+        scored_indices = [(i, float(scores[i])) for i in range(len(scores))]
+        scored_indices.sort(key=lambda x: x[1], reverse=True)
+        return scored_indices[:top_n]
 
     except Exception as e:
         logger.warning(f"BGE rerank 失败，回退到原始排序: {e}")
-        return list(range(min(top_n, len(documents))))
+        # 回退时返回带默认分数的结果
+        return [(i, 0.0) for i in range(min(top_n, len(documents)))]
 
 
 @tool
@@ -123,41 +134,46 @@ def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     try:
         vectordb = _get_vectordb()
 
-        # 1. Vector similarity search
-        vector_results = vectordb.similarity_search(query, k=top_k * 2)
+        # 1. Vector similarity search with scores
+        vector_results_with_scores = vectordb.similarity_search_with_score(query, k=top_k * 3)
         vector_docs = [
-            {"page_content": doc.page_content, "metadata": doc.metadata}
-            for doc in vector_results
+            {
+                "page_content": doc.page_content, 
+                "metadata": doc.metadata,
+                "vector_score": float(score),
+            }
+            for doc, score in vector_results_with_scores
         ]
 
-        # 2. BM25 keyword search (over same collection)
-        # Get all documents for BM25 (limited to a reasonable size)
-        try:
-            collection = vectordb._collection
-            all_data = collection.get(limit=1000)
-            all_docs_for_bm25 = [
-                {
-                    "page_content": content,
-                    "metadata": meta,
-                }
-                for content, meta in zip(
-                    all_data.get("documents", []),
-                    all_data.get("metadatas", []),
-                )
-            ]
-            bm25_docs = _bm25_search(query, all_docs_for_bm25, top_k=top_k * 2)
-        except Exception as e:
-            logger.warning(f"BM25 检索失败，仅使用向量检索: {e}")
-            bm25_docs = []
+        # 2. BM25 keyword search (优化：只在向量召回的候选集上做BM25)
+        bm25_docs = []
+        if vector_docs:
+            try:
+                bm25_docs = _bm25_search(query, vector_docs, top_k=top_k * 2)
+            except Exception as e:
+                logger.warning(f"BM25 检索失败，仅使用向量检索: {e}")
 
-        # 3. Merge and deduplicate
+        # 3. Merge and deduplicate (改进：用完整内容hash + 相邻chunk合并)
         seen = set()
         merged = []
+        parent_chunks = {}  # 用于合并同一文档的相邻chunks
+        
         for doc in vector_docs + bm25_docs:
-            content_hash = hash(doc["page_content"][:200])
+            content_hash = hash(doc["page_content"])
             if content_hash not in seen:
                 seen.add(content_hash)
-                merged.append(doc)
+                
+                # 尝试合并相邻chunks
+                parent_id = doc["metadata"].get("parent_doc_id")
+                chunk_idx = doc["metadata"].get("chunk_index")
+                
+                if parent_id and chunk_idx is not None:
+                    key = f"{parent_id}_{chunk_idx}"
+                    if key not in parent_chunks:
+                        parent_chunks[key] = doc
+                        merged.append(doc)
+                else:
+                    merged.append(doc)
 
         if not merged:
             return {
@@ -168,15 +184,18 @@ def search_knowledge_base(query: str, top_k: int = 5) -> dict:
 
         # 4. Rerank with BGE-reranker-v2-m3 (ONNX)
         texts = [doc["page_content"] for doc in merged]
-        top_indices = _rerank(query, texts, top_n=top_k)
+        ranked_results = _rerank(query, texts, top_n=top_k)
 
         results = []
-        for idx in top_indices:
+        for idx, rerank_score in ranked_results:
             if idx < len(merged):
+                doc = merged[idx]
                 results.append({
-                    "content": merged[idx]["page_content"],
-                    "source": merged[idx]["metadata"].get("source", "unknown"),
-                    "type": merged[idx]["metadata"].get("type", "unknown"),
+                    "content": doc["page_content"],
+                    "source": doc["metadata"].get("source", "unknown"),
+                    "type": doc["metadata"].get("type", "unknown"),
+                    "rerank_score": rerank_score,
+                    "vector_score": doc.get("vector_score"),
                 })
 
         return {

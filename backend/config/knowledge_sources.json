@@ -1,0 +1,93 @@
+{
+  "sources": [
+    {
+      "name": "static_web_pages",
+      "type": "web",
+      "enabled": true,
+      "fetcher": "WebPageFetcher",
+      "config": {
+        "urls": [
+          "https://corporatefinanceinstitute.com/resources/valuation/price-earnings-ratio/",
+          "https://corporatefinanceinstitute.com/resources/accounting/earnings-per-share-eps-formula/",
+          "https://corporatefinanceinstitute.com/resources/valuation/fcf-formula-free-cash-flow/",
+          "https://corporatefinanceinstitute.com/resources/valuation/ebitda-margin/",
+          "https://www.investor.gov/introduction-investing/investing-basics/investment-products",
+          "https://www.investor.gov/introduction-investing/investing-basics/how-stock-markets-work"
+        ],
+        "timeout": 30,
+        "retry_count": 3
+      }
+    },
+    {
+      "name": "wikipedia_articles",
+      "type": "wiki",
+      "enabled": true,
+      "fetcher": "WikipediaFetcher",
+      "config": {
+        "queries": [
+          "市盈率",
+          "净资产收益率",
+          "自由现金流",
+          "市净率",
+          "Price–earnings ratio",
+          "EBITDA"
+        ],
+        "max_docs_per_query": 1
+      }
+    },
+    {
+      "name": "company_earnings",
+      "type": "earnings",
+      "enabled": true,
+      "fetcher": "YahooFinanceFetcher",
+      "config": {
+        "tickers": ["BABA", "TSLA", "AAPL", "TCEHY"],
+        "data_fields": [
+          "trailingPE",
+          "priceToBook",
+          "trailingEps",
+          "totalRevenue",
+          "profitMargins",
+          "returnOnEquity",
+          "industry"
+        ]
+      }
+    },
+    {
+      "name": "web_search_results",
+      "type": "tavily",
+      "enabled": true,
+      "fetcher": "TavilyFetcher",
+      "config": {
+        "queries": [
+          "阿里巴巴最新季度财报摘要",
+          "特斯拉季报要点",
+          "腾讯控股财务数据"
+        ],
+        "max_results_per_query": 3,
+        "search_depth": "advanced"
+      }
+    },
+    {
+      "name": "local_documents",
+      "type": "local_file",
+      "enabled": true,
+      "fetcher": "LocalFileFetcher",
+      "config": {
+        "base_directory": "${KNOWLEDGE_FILES_DIR}",
+        "supported_extensions": [".txt", ".md", ".docx", ".pdf"],
+        "recursive": true,
+        "encoding": "utf-8"
+      }
+    }
+  ],
+  "chunking": {
+    "chunk_size": 1024,
+    "chunk_overlap": 128,
+    "separators": ["\n\n", "\n", "。", ".", "!", "?", "；", ";", " "]
+  },
+  "vectordb": {
+    "collection_name": "finance_knowledge",
+    "persist_directory": "${CHROMA_DIR}"
+  }
+}

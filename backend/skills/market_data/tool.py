@@ -23,8 +23,12 @@ def get_market_data(ticker: str, period: str = "7d") -> dict:
         return {"error": f"未找到 {ticker} 的行情数据，请确认代码正确"}
 
     current = hist["Close"].iloc[-1]
-    start = hist["Close"].iloc[0]
-    change_pct = (current - start) / start * 100
+    if len(hist) >= 2:
+        prev_close = hist["Close"].iloc[-2]
+        change_pct = (current - prev_close) / prev_close * 100
+    else:
+        start = hist["Open"].iloc[0]
+        change_pct = (current - start) / start * 100
     trend = "上涨" if change_pct > 3 else ("下跌" if change_pct < -3 else "震荡")
 
     return {
