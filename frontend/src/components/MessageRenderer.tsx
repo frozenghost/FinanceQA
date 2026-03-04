@@ -34,22 +34,22 @@ export function MessageRenderer({ message }: Props) {
     >
       {/* Avatar */}
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm border border-blue-200">
+        <div className="w-8 h-8 rounded-full bg-slate-950 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_12px_32px_rgba(16,185,129,0.6)] border border-emerald-400/70">
           <Bot className="w-5 h-5" />
         </div>
       )}
 
       <div
         className={clsx(
-          "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-sm",
+          "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.9)] border backdrop-blur-2xl",
           isUser
-            ? "bg-blue-50 text-blue-900 border border-blue-100 rounded-tr-sm"
-            : "bg-white text-slate-800 border border-slate-200 rounded-tl-sm"
+            ? "bg-emerald-500/15 text-emerald-100 border-emerald-400/80 rounded-tr-sm"
+            : "bg-slate-900/80 text-slate-50 border-slate-700/80 rounded-tl-sm"
         )}
       >
         {/* Message content */}
         {message.content && (
-          <div className="prose prose-slate prose-sm max-w-none">
+          <div className="prose prose-invert prose-sm max-w-none">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {message.content}
             </ReactMarkdown>
@@ -62,7 +62,7 @@ export function MessageRenderer({ message }: Props) {
 
       {/* User avatar */}
       {isUser && (
-        <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
+        <div className="w-8 h-8 rounded-full bg-slate-950 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_12px_32px_rgba(16,185,129,0.6)] border border-emerald-400/70">
           <User className="w-4 h-4" />
         </div>
       )}
@@ -140,23 +140,28 @@ function MarketCard({ metadata }: { metadata: MessageMetadata }) {
 function TechnicalCard({ metadata }: { metadata: MessageMetadata }) {
   const indicators = metadata.indicators || {};
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
-      <div className="text-xs text-slate-500 mb-3 font-semibold uppercase tracking-wider">技术指标</div>
+    <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl p-4 shadow-[0_18px_45px_rgba(15,23,42,0.95)] backdrop-blur-2xl">
+      <div className="text-xs text-slate-300 mb-3 font-semibold uppercase tracking-wider">
+        技术指标
+      </div>
       <div className="grid grid-cols-3 gap-3 text-xs">
         {Object.entries(indicators).map(([key, value]) => (
-          <div key={key} className="bg-slate-50 rounded-lg p-2.5 border border-slate-100">
-            <div className="text-slate-500 font-medium">{key}</div>
-            <div className="font-mono font-semibold text-slate-800 mt-1">
+          <div
+            key={key}
+            className="bg-slate-900/80 rounded-lg p-2.5 border border-slate-700/80"
+          >
+            <div className="text-slate-200 font-medium">{key}</div>
+            <div className="font-mono font-semibold text-slate-50 mt-1">
               {value !== null ? value : "N/A"}
             </div>
           </div>
         ))}
       </div>
       {metadata.signals && metadata.signals.length > 0 && (
-        <div className="mt-3 space-y-1.5 bg-blue-50/50 p-2.5 rounded-lg border border-blue-100/50">
+        <div className="mt-3 space-y-1.5 bg-emerald-500/10 p-2.5 rounded-lg border border-emerald-400/60">
           {metadata.signals.map((signal, i) => (
-            <div key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
-              <span className="text-blue-500 mt-0.5">•</span>
+            <div key={i} className="text-xs text-slate-100 flex items-start gap-1.5">
+              <span className="text-emerald-400 mt-0.5">•</span>
               {signal}
             </div>
           ))}
@@ -172,10 +177,10 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
   if (!steps || steps.length === 0) return null;
 
   return (
-    <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm bg-white mt-4">
+    <div className="border border-slate-700/80 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(15,23,42,0.95)] bg-slate-950/80 backdrop-blur-2xl mt-4">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-50 hover:bg-slate-100 text-xs text-slate-600 font-medium transition-colors border-b border-transparent data-[state=open]:border-slate-200"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-900/80 hover:bg-slate-800/80 text-xs text-slate-300 font-medium transition-colors border-b border-transparent data-[state=open]:border-slate-700/70"
         data-state={open ? "open" : "closed"}
       >
         <span>Agent 推理步骤 ({steps.length})</span>
@@ -186,17 +191,19 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
         )}
       </button>
       {open && (
-        <div className="px-4 py-3 space-y-2 bg-white">
+        <div className="px-4 py-3 space-y-2 bg-slate-950/70">
           {steps.map((step, i) => (
             <div key={step.id || i} className="flex items-center gap-2.5 text-xs">
               <span
                 className={clsx(
-                  "w-1.5 h-1.5 rounded-full flex-shrink-0",
-                  step.status === "completed" ? "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.5)]" : "bg-amber-400 animate-pulse"
+                  "w-1.5 h-1.5 rounded-full shrink-0",
+                  step.status === "completed"
+                    ? "bg-green-500 shadow-[0_0_4px_rgba(34,197,94,0.5)]"
+                    : "bg-amber-400 animate-pulse"
                 )}
               />
               <span className="font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[11px] font-semibold">{step.tool}</span>
-              <span className="text-slate-500 truncate">
+              <span className="text-slate-300 truncate">
                 {JSON.stringify(step.input).slice(0, 60)}
                 {JSON.stringify(step.input).length > 60 ? "..." : ""}
               </span>

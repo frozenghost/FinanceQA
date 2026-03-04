@@ -24,6 +24,7 @@ env/
 
 # ── Data / runtime artifacts ─────────────────────────────
 chroma_db/
+models/
 *.db
 logs.db
 
