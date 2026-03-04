@@ -1,0 +1,75 @@
+"""Redis cache layer with graceful degradation.
+
+When Redis is unavailable the decorator transparently falls through
+to the wrapped function so the main data path is never blocked.
+"""
+
+import functools
+import hashlib
+import json
+import logging
+
+import redis
+
+from config.settings import settings
+
+logger = logging.getLogger(__name__)
+
+# ── Redis connection (fail-open) ──────────────────────────────
+try:
+    _r = redis.Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        decode_responses=True,
+        socket_connect_timeout=2,
+    )
+    _r.ping()
+    REDIS_AVAILABLE = True
+    logger.info("Redis 连接成功")
+except Exception:
+    logger.warning("Redis 不可用，缓存层已降级为直连模式")
+    _r = None  # type: ignore[assignment]
+    REDIS_AVAILABLE = False
+
+
+def cached(key_prefix: str, ttl: int):
+    """
+    Universal cache decorator.
+
+    - Redis available: cache hit → return cached; miss → compute + store.
+    - Redis unavailable: pass-through, main path unaffected.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not REDIS_AVAILABLE or _r is None:
+                return func(*args, **kwargs)
+
+            raw = json.dumps({"a": args, "k": kwargs}, sort_keys=True, default=str)
+            key = f"{key_prefix}:{hashlib.md5(raw.encode()).hexdigest()[:12]}"
+
+            # Try read from cache
+            try:
+                if cached_val := _r.get(key):
+                    result = json.loads(cached_val)
+                    result["_cache"] = {"hit": True, "ttl": _r.ttl(key)}
+                    return result
+            except redis.RedisError as e:
+                logger.warning(f"Cache read error: {e}")
+
+            # Compute
+            result = func(*args, **kwargs)
+
+            # Try write to cache
+            try:
+                _r.setex(key, ttl, json.dumps(result, default=str))
+                result["_cache"] = {"hit": False}
+            except redis.RedisError as e:
+                logger.warning(f"Cache write error: {e}")
+
+            return result
+
+        return wrapper
+
+    return decorator

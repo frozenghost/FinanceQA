@@ -1,0 +1,7 @@
+[
+  {
+    "input": {"ticker": "AAPL", "period": "90d"},
+    "expected_keys": ["ticker", "current_price", "indicators", "signals"],
+    "description": "Apple 90d technical indicators should return MA, RSI, MACD"
+  }
+]

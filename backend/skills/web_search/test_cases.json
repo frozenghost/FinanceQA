@@ -1,0 +1,7 @@
+[
+  {
+    "input": {"query": "Tesla Q4 earnings 2024", "max_results": 3},
+    "expected_keys": ["query", "results"],
+    "description": "Web search for Tesla earnings should return results"
+  }
+]

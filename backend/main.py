@@ -1,0 +1,71 @@
+"""FastAPI application entry point with lifespan for scheduler management."""
+
+import logging
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from config.settings import settings
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage APScheduler lifecycle."""
+    scheduler = None
+
+    if settings.KB_REFRESH_ENABLED:
+        try:
+            from scripts.refresh_knowledge import start_scheduler
+
+            scheduler = start_scheduler()
+            logger.info("APScheduler started — knowledge base refresh registered")
+        except Exception as e:
+            logger.warning(f"APScheduler 启动失败（不影响主服务）: {e}")
+
+    yield
+
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
+        logger.info("APScheduler shut down")
+
+
+app = FastAPI(
+    title="Finance QA System",
+    description="金融资产问答系统 — LangGraph ReAct Agent + OpenRouter",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+# CORS for frontend dev server
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", settings.APP_URL],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Register API routes
+from api.routes.query import router as query_router
+from api.routes.market import router as market_router
+from api.routes.admin import router as admin_router
+
+app.include_router(query_router, tags=["Query"])
+app.include_router(market_router, tags=["Market"])
+app.include_router(admin_router, tags=["Admin"])
+
+
+@app.get("/")
+async def root():
+    return {
+        "name": "Finance QA System",
+        "version": "0.1.0",
+        "docs": "/docs",
+    }

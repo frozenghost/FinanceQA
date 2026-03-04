@@ -1,0 +1,40 @@
+# ── Python ────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ── Virtual environment ──────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Environment variables (secrets) ─────────────────────
+.env
+
+# ── uv ───────────────────────────────────────────────────
+# uv.lock 应提交到 git，不要忽略
+
+# ── IDE ──────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Data / runtime artifacts ─────────────────────────────
+chroma_db/
+*.db
+logs.db
+
+# ── Test / coverage ──────────────────────────────────────
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# ── Distribution ─────────────────────────────────────────
+dist/
+build/
+*.egg-info/

@@ -1,0 +1,12 @@
+[
+  {
+    "input": {"ticker": "AAPL", "period": "7d"},
+    "expected_keys": ["ticker", "current", "change_pct", "high", "low", "trend", "ohlcv"],
+    "description": "Apple 7-day market data should return valid OHLCV"
+  },
+  {
+    "input": {"ticker": "INVALID_TICKER_XYZ", "period": "7d"},
+    "expected_keys": ["error"],
+    "description": "Invalid ticker should return error message"
+  }
+]

@@ -1,0 +1,7 @@
+[
+  {
+    "input": {"query": "Tesla", "page_size": 3},
+    "expected_keys": ["query", "total_results", "articles"],
+    "description": "Tesla news should return articles list"
+  }
+]
