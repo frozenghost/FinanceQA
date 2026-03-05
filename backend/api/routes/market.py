@@ -2,14 +2,13 @@
 
 from fastapi import APIRouter
 
-from skills.market_data.tool import get_market_data
+from skills.market_data.tool import get_real_time_quote
 
 router = APIRouter()
 
 
 @router.get("/api/market/{ticker}")
-async def get_market(ticker: str, period: str = "7d"):
-    """Fetch market data for a given ticker. Used by frontend TanStack Query."""
-    # get_market_data is a LangChain tool; call its underlying function
-    result = get_market_data.invoke({"ticker": ticker, "period": period})
+async def get_market(ticker: str):
+    """Fetch real-time quote for a given ticker. Used by frontend TanStack Query."""
+    result = get_real_time_quote.invoke({"ticker": ticker})
     return result

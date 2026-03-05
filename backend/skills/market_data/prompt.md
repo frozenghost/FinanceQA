@@ -1,11 +1,21 @@
-## market_data 工具使用约束
+# Market Data Skill Guidelines
 
-- 当用户询问某只股票的价格、走势、涨跌幅时，使用 get_market_data 工具
-- ticker 参数应为标准代码：美股直接用代码（如 BABA、TSLA），港股加 .HK 后缀（如 0700.HK）
-- period 参数根据用户意图选择：
-  - "最近几天" → 7d
-  - "本月" → 30d
-  - "近三个月" → 90d
-  - "今年" / "年初至今" → 1y
-- 返回结果中的数据约有 15 分钟延迟，回答时须提醒用户
-- 如果返回 error 字段，告知用户代码可能有误并建议检查
+## When to Use
+- User asks for current stock price, real-time quote
+- User wants to see historical price movements, charts, OHLCV data
+- User needs price data for a specific time period
+
+## Tool Selection
+- `get_real_time_quote`: For current price, today's performance, basic info
+- `get_historical_prices`: For price history, trends, chart data
+
+## Best Practices
+- Always specify the ticker symbol clearly
+- For historical data, choose appropriate period based on user's question
+- Mention the 15-minute delay in data when relevant
+- If user asks about multiple stocks, call the tool multiple times
+
+## Data Limitations
+- Data has ~15 minute delay (not real-time)
+- Historical data availability varies by ticker
+- Some tickers may not be available in Yahoo Finance

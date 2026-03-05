@@ -1,7 +1,23 @@
-## news 工具使用约束
+# News Skill Guidelines
 
-- 当用户询问某公司或市场的最新新闻、公告、财报发布时，使用 get_financial_news 工具
-- query 参数应包含公司英文名或股票代码，便于 NewsAPI 搜索
-  - 例如用户问"阿里巴巴新闻"，query 应为 "Alibaba" 或 "BABA"
-- 返回结果为英文新闻，回答时需翻译摘要并标注来源
-- 如果无相关新闻，如实告知用户，不要编造新闻内容
+## When to Use
+- User asks about recent news for a company or sector
+- User wants to know about market events or announcements
+- User inquires about latest developments or updates
+
+## Best Practices
+- Summarize key points from multiple articles
+- Provide publication dates to show recency
+- Include source names for credibility
+- Link related news to market movements when relevant
+
+## Query Optimization
+- Use specific company names or ticker symbols
+- Include relevant keywords (earnings, merger, lawsuit, etc.)
+- Adjust page_size based on how much detail user wants
+
+## Important Notes
+- News is in English only (NewsAPI limitation)
+- Results are sorted by publication date (most recent first)
+- Some articles may have limited descriptions
+- Always cite sources when presenting news information

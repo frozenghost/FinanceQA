@@ -4,9 +4,10 @@
 架构：
 1. coordinator: 分析问题，规划工具调用
 2. router: 决定是否需要工具
-3. enforcer: 强制要求使用工具
+3. enforcer: 强制要求使用工具（显示进度）
 4. agent: 执行工具调用和生成答案
-5. validator: 验证是否真的使用了工具
+5. tools: 执行工具（自动跟踪）
+6. validator: 验证是否按计划执行了所有工具
 """
 
 from typing import Literal
@@ -35,7 +36,7 @@ def agent_node(state: AgentState) -> dict:
     
     # 获取系统提示（只在第一次调用时添加）
     messages = state["messages"]
-    if not any(isinstance(m, SystemMessage) for m in messages):
+    if not any(isinstance(m, SystemMessage) and "你是一个专业的金融分析助手" in m.content for m in messages):
         # 使用严格模式的 prompt
         system_prompt = load_system_prompt(strict=True)
         messages = [SystemMessage(content=system_prompt)] + messages
@@ -44,6 +45,28 @@ def agent_node(state: AgentState) -> dict:
     response = llm_with_tools.invoke(messages)
     
     return {"messages": [response]}
+
+
+def tools_with_tracking(state: AgentState) -> dict:
+    """工具执行节点：执行工具并自动跟踪"""
+    # 执行工具
+    tool_node = ToolNode(ALL_TOOLS)
+    result = tool_node.invoke(state)
+    
+    # 跟踪已执行的工具
+    messages = result.get("messages", state["messages"])
+    executed_tools = state.get("executed_tools", [])
+    
+    # 查找最近的工具调用
+    for msg in reversed(messages[-10:]):
+        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
+            for tool_call in msg.tool_calls:
+                tool_name = tool_call.get("name", "")
+                if tool_name and tool_name not in executed_tools:
+                    executed_tools.append(tool_name)
+    
+    result["executed_tools"] = executed_tools
+    return result
 
 
 def should_continue(state: AgentState) -> Literal["tools", "validate", "end"]:
@@ -70,16 +93,16 @@ def should_continue(state: AgentState) -> Literal["tools", "validate", "end"]:
     return "end"
 
 
-def check_validation(state: AgentState) -> Literal["agent", "end"]:
+def check_validation(state: AgentState) -> Literal["enforcer", "end"]:
     """
     检查验证结果：
-    - 如果验证失败 → 返回 agent 重新处理
+    - 如果验证失败 → 返回 enforcer 重新强制（显示进度）
     - 否则 → 结束
     """
     validation_failed = state.get("validation_failed", False)
     
     if validation_failed:
-        return "agent"
+        return "enforcer"
     return "end"
 
 
@@ -90,11 +113,11 @@ def build_agent_with_coordinator():
     workflow = StateGraph(AgentState)
     
     # 添加节点
-    workflow.add_node("coordinator", coordinate_tools)      # 协调器：规划工具
-    workflow.add_node("enforcer", enforce_tool_usage)       # 强制器：添加强制指令
-    workflow.add_node("agent", agent_node)                  # Agent：LLM 推理
-    workflow.add_node("tools", ToolNode(ALL_TOOLS))         # 工具执行
-    workflow.add_node("validator", validate_tool_usage)     # 验证器：检查工具使用
+    workflow.add_node("coordinator", coordinate_tools)          # 协调器：规划工具
+    workflow.add_node("enforcer", enforce_tool_usage)           # 强制器：添加强制指令（显示进度）
+    workflow.add_node("agent", agent_node)                      # Agent：LLM 推理
+    workflow.add_node("tools", tools_with_tracking)             # 工具执行（自动跟踪）
+    workflow.add_node("validator", validate_tool_usage)         # 验证器：检查工具使用
     
     # 设置入口
     workflow.set_entry_point("coordinator")
@@ -117,7 +140,7 @@ def build_agent_with_coordinator():
         "agent",
         should_continue,
         {
-            "tools": "tools",         # 有工具调用 → 执行工具
+            "tools": "tools",         # 有工具调用 → 执行工具（自动跟踪）
             "validate": "validator",  # 需要验证 → 验证器
             "end": END,              # 结束
         }
@@ -131,8 +154,8 @@ def build_agent_with_coordinator():
         "validator",
         check_validation,
         {
-            "agent": "agent",  # 验证失败 → 重新处理
-            "end": END,        # 验证通过 → 结束
+            "enforcer": "enforcer",  # 验证失败 → 重新强制（显示进度）
+            "end": END,              # 验证通过 → 结束
         }
     )
     

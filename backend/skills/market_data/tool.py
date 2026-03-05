@@ -1,46 +1,106 @@
-"""Market data skill — fetches OHLCV data from Yahoo Finance."""
+"""Market data skill — real-time quotes and historical OHLCV data."""
+
+import logging
+from typing import Literal
 
 import yfinance as yf
 from langchain_core.tools import tool
 
 from services.cache_service import cached
 
+logger = logging.getLogger(__name__)
+
 
 @tool
-@cached(key_prefix="market", ttl=3600)
-def get_market_data(ticker: str, period: str = "7d") -> dict:
+@cached(key_prefix="quote", ttl=60)
+def get_real_time_quote(ticker: str) -> dict:
     """
-    获取股票历史行情数据并计算涨跌幅与趋势。
-    - ticker: 股票代码，如 BABA、TSLA、0700.HK
-    - period: 时间范围，支持 1d / 7d / 30d / 90d / 1y
-    返回当前价格、区间涨跌幅、最高/最低价、OHLCV 列表、趋势判断。
-    注意：返回数据来自 Yahoo Finance，约有 15 分钟延迟。
+    获取股票实时报价和基本信息。
+    - ticker: 股票代码，如 BABA、TSLA、0700.HK、^GSPC
+    返回当前价格、日内涨跌幅、成交量、52周高低点等实时数据。
+    适用于快速查询当前价格、盘中表现等场景。
     """
-    tk = yf.Ticker(ticker)
-    hist = tk.history(period=period)
+    try:
+        tk = yf.Ticker(ticker)
+        info = tk.info
 
-    if hist.empty:
-        return {"error": f"未找到 {ticker} 的行情数据，请确认代码正确"}
+        if not info or "currentPrice" not in info:
+            return {"error": f"未找到 {ticker} 的实时报价"}
 
-    current = hist["Close"].iloc[-1]
-    if len(hist) >= 2:
-        prev_close = hist["Close"].iloc[-2]
-        change_pct = (current - prev_close) / prev_close * 100
-    else:
-        start = hist["Open"].iloc[0]
-        change_pct = (current - start) / start * 100
-    trend = "上涨" if change_pct > 3 else ("下跌" if change_pct < -3 else "震荡")
+        current = info.get("currentPrice") or info.get("regularMarketPrice")
+        prev_close = info.get("previousClose")
+        change_pct = ((current - prev_close) / prev_close * 100) if prev_close else 0
 
-    return {
-        "ticker": ticker,
-        "current": round(float(current), 2),
-        "change_pct": round(float(change_pct), 2),
-        "high": round(float(hist["High"].max()), 2),
-        "low": round(float(hist["Low"].min()), 2),
-        "trend": trend,
-        "ohlcv": hist[["Open", "High", "Low", "Close", "Volume"]]
-        .reset_index()
-        .to_dict("records"),
-        "data_source": "yfinance",
-        "delay_note": "数据约有 15 分钟延迟",
-    }
+        return {
+            "ticker": ticker,
+            "name": info.get("longName", info.get("shortName", ticker)),
+            "current_price": round(float(current), 2),
+            "previous_close": round(float(prev_close), 2) if prev_close else None,
+            "change_percent": round(float(change_pct), 2),
+            "day_high": info.get("dayHigh"),
+            "day_low": info.get("dayLow"),
+            "volume": info.get("volume"),
+            "market_cap": info.get("marketCap"),
+            "52_week_high": info.get("fiftyTwoWeekHigh"),
+            "52_week_low": info.get("fiftyTwoWeekLow"),
+            "currency": info.get("currency", "USD"),
+            "exchange": info.get("exchange"),
+            "data_source": "yfinance",
+            "delay_note": "数据约有 15 分钟延迟",
+        }
+    except Exception as e:
+        logger.error(f"获取实时报价失败 {ticker}: {e}")
+        return {"error": f"获取实时报价失败: {str(e)}"}
+
+
+@tool
+@cached(key_prefix="ohlcv", ttl=3600)
+def get_historical_prices(
+    ticker: str,
+    period: Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max"] = "1mo",
+    interval: Literal["1d", "1wk", "1mo"] = "1d",
+) -> dict:
+    """
+    获取股票历史价格数据（OHLCV）。
+    - ticker: 股票代码
+    - period: 时间范围，支持 1d/5d/1mo/3mo/6mo/1y/2y/5y/max
+    - interval: 数据粒度，支持 1d(日线)/1wk(周线)/1mo(月线)
+    返回完整的 OHLCV 数据列表，包含开盘价、最高价、最低价、收盘价、成交量。
+    适用于绘制K线图、计算技术指标、分析历史走势等场景。
+    """
+    try:
+        tk = yf.Ticker(ticker)
+        hist = tk.history(period=period, interval=interval)
+
+        if hist.empty:
+            return {"error": f"未找到 {ticker} 的历史数据"}
+
+        ohlcv = []
+        for idx, row in hist.iterrows():
+            ohlcv.append({
+                "date": idx.strftime("%Y-%m-%d"),
+                "open": round(float(row["Open"]), 2),
+                "high": round(float(row["High"]), 2),
+                "low": round(float(row["Low"]), 2),
+                "close": round(float(row["Close"]), 2),
+                "volume": int(row["Volume"]),
+            })
+
+        # 计算区间统计
+        closes = hist["Close"]
+        period_return = ((closes.iloc[-1] - closes.iloc[0]) / closes.iloc[0] * 100) if len(closes) > 1 else 0
+
+        return {
+            "ticker": ticker,
+            "period": period,
+            "interval": interval,
+            "data_points": len(ohlcv),
+            "period_return_pct": round(float(period_return), 2),
+            "period_high": round(float(hist["High"].max()), 2),
+            "period_low": round(float(hist["Low"].min()), 2),
+            "ohlcv": ohlcv,
+            "data_source": "yfinance",
+        }
+    except Exception as e:
+        logger.error(f"获取历史数据失败 {ticker}: {e}")
+        return {"error": f"获取历史数据失败: {str(e)}"}

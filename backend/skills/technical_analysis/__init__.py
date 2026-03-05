@@ -1,0 +1,1 @@
+"""Technical analysis skill module."""

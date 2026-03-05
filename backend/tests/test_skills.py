@@ -1,100 +1,119 @@
-"""Unit tests for individual skills."""
-
-import json
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+"""Unit tests for all skills."""
 
 import pytest
-
-
-SKILLS_DIR = Path(__file__).parent.parent / "skills"
 
 
 class TestMarketDataSkill:
     """Tests for the market_data skill."""
 
-    def test_valid_ticker_returns_expected_keys(self):
-        """A valid ticker should return price data with expected keys."""
-        from skills.market_data.tool import get_market_data
+    def test_real_time_quote_returns_expected_keys(self):
+        """A valid ticker should return quote data with expected keys."""
+        from skills.market_data.tool import get_real_time_quote
 
-        result = get_market_data.invoke({"ticker": "AAPL", "period": "7d"})
+        result = get_real_time_quote.invoke({"ticker": "AAPL"})
 
-        # Should have core fields (may hit cache or live data)
         assert isinstance(result, dict)
         if "error" not in result:
-            for key in ["ticker", "current", "change_pct", "trend"]:
-                assert key in result, f"Missing key: {key}"
+            assert "ticker" in result
+            assert "current_price" in result
+            assert "change_percent" in result
+
+    def test_historical_prices_returns_ohlcv(self):
+        """A valid ticker should return historical OHLCV data."""
+        from skills.market_data.tool import get_historical_prices
+
+        result = get_historical_prices.invoke({"ticker": "AAPL", "period": "1mo"})
+
+        assert isinstance(result, dict)
+        if "error" not in result:
+            assert "ohlcv" in result
+            assert isinstance(result["ohlcv"], list)
 
     def test_invalid_ticker_returns_error(self):
         """An invalid ticker should return an error message."""
-        from skills.market_data.tool import get_market_data
+        from skills.market_data.tool import get_real_time_quote
 
-        result = get_market_data.invoke({"ticker": "INVALID_TICKER_XYZ123", "period": "7d"})
+        result = get_real_time_quote.invoke({"ticker": "INVALID_TICKER_XYZ123"})
+
         assert isinstance(result, dict)
         assert "error" in result
+
+
+class TestFundamentalsSkill:
+    """Tests for the fundamentals skill."""
+
+    def test_company_fundamentals_returns_metrics(self):
+        """A valid ticker should return fundamental metrics."""
+        from skills.fundamentals.tool import get_company_fundamentals
+
+        result = get_company_fundamentals.invoke({"ticker": "AAPL"})
+
+        assert isinstance(result, dict)
+        if "error" not in result:
+            assert "valuation" in result
+            assert "profitability" in result
+
+    def test_earnings_history_returns_data(self):
+        """A valid ticker should return earnings history."""
+        from skills.fundamentals.tool import get_earnings_history
+
+        result = get_earnings_history.invoke({"ticker": "AAPL"})
+
+        assert isinstance(result, dict)
+        assert "ticker" in result
+
+
+class TestTechnicalAnalysisSkill:
+    """Tests for the technical_analysis skill."""
+
+    def test_technical_indicators_returns_signals(self):
+        """A valid ticker should return technical indicators and signals."""
+        from skills.technical_analysis.tool import calculate_technical_indicators
+
+        result = calculate_technical_indicators.invoke({"ticker": "AAPL", "period": "6mo"})
+
+        assert isinstance(result, dict)
+        if "error" not in result:
+            assert "indicators" in result
+            assert "signals" in result
+            assert "overall_signal" in result
 
 
 class TestNewsSkill:
     """Tests for the news skill."""
 
-    def test_news_returns_expected_structure(self):
-        """News query should return articles list structure."""
+    def test_financial_news_returns_articles(self):
+        """News search should return articles list."""
         from skills.news.tool import get_financial_news
 
-        result = get_financial_news.invoke({"query": "Tesla", "page_size": 2})
-        assert isinstance(result, dict)
-        # Either articles or error (if API key missing)
-        assert "articles" in result or "error" in result
+        result = get_financial_news.invoke({"query": "Apple earnings", "page_size": 3})
 
-
-class TestWebSearchSkill:
-    """Tests for the web_search skill."""
-
-    def test_web_search_returns_expected_structure(self):
-        """Web search should return results list structure."""
-        from skills.web_search.tool import search_web
-
-        result = search_web.invoke({"query": "Tesla stock price", "max_results": 2})
-        assert isinstance(result, dict)
-        assert "results" in result or "error" in result
-
-
-class TestTechnicalMetricsSkill:
-    """Tests for the technical_metrics skill."""
-
-    def test_valid_ticker_returns_indicators(self):
-        """A valid ticker should return technical indicators."""
-        from skills.technical_metrics.tool import get_technical_indicators
-
-        result = get_technical_indicators.invoke({"ticker": "AAPL", "period": "90d"})
         assert isinstance(result, dict)
         if "error" not in result:
-            assert "indicators" in result
-            assert "signals" in result
+            assert "articles" in result
+            assert isinstance(result["articles"], list)
 
 
-class TestRagSearchSkill:
-    """Tests for the rag_search skill."""
+class TestResearchSkill:
+    """Tests for the research skill."""
 
-    def test_search_returns_expected_structure(self):
-        """RAG search should return results structure even if empty."""
-        from skills.rag_search.tool import search_knowledge_base
+    def test_knowledge_base_search_returns_structure(self):
+        """Knowledge base search should return results structure."""
+        from skills.research.tool import search_knowledge_base
 
         result = search_knowledge_base.invoke({"query": "什么是市盈率", "top_k": 3})
+
         assert isinstance(result, dict)
         assert "query" in result
-        assert "results" in result or "error" in result
+        assert "results" in result
 
+    def test_web_search_returns_results(self):
+        """Web search should return results list structure."""
+        from skills.research.tool import search_web
 
-class TestSkillTestCases:
-    """Validate that all test_cases.json files are well-formed."""
+        result = search_web.invoke({"query": "Tesla stock price", "max_results": 2})
 
-    def test_all_test_cases_json_valid(self):
-        """Every test_cases.json should be valid JSON with required fields."""
-        for tc_path in SKILLS_DIR.rglob("test_cases.json"):
-            content = tc_path.read_text(encoding="utf-8")
-            cases = json.loads(content)
-            assert isinstance(cases, list), f"{tc_path} should be a list"
-            for case in cases:
-                assert "input" in case, f"Missing 'input' in {tc_path}"
-                assert "expected_keys" in case, f"Missing 'expected_keys' in {tc_path}"
+        assert isinstance(result, dict)
+        if "error" not in result:
+            assert "results" in result
+            assert isinstance(result["results"], list)

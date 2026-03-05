@@ -1,12 +1,20 @@
-[
-  {
-    "input": {"ticker": "AAPL", "period": "7d"},
-    "expected_keys": ["ticker", "current", "change_pct", "high", "low", "trend", "ohlcv"],
-    "description": "Apple 7-day market data should return valid OHLCV"
-  },
-  {
-    "input": {"ticker": "INVALID_TICKER_XYZ", "period": "7d"},
-    "expected_keys": ["error"],
-    "description": "Invalid ticker should return error message"
-  }
-]
+{
+  "test_cases": [
+    {
+      "tool": "get_real_time_quote",
+      "input": {
+        "ticker": "AAPL"
+      },
+      "expected_fields": ["ticker", "current_price", "change_percent", "volume"]
+    },
+    {
+      "tool": "get_historical_prices",
+      "input": {
+        "ticker": "TSLA",
+        "period": "1mo",
+        "interval": "1d"
+      },
+      "expected_fields": ["ticker", "ohlcv", "period_return_pct"]
+    }
+  ]
+}

@@ -44,7 +44,7 @@ class TestPromptLoader:
         prompt = load_system_prompt()
         # Should contain skill names from prompt.md files
         assert "market_data" in prompt
-        assert "rag_search" in prompt
+        assert "research" in prompt
 
 
 class TestSkillsRegistry:

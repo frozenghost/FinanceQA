@@ -1,0 +1,12 @@
+{
+  "test_cases": [
+    {
+      "tool": "calculate_technical_indicators",
+      "input": {
+        "ticker": "AAPL",
+        "period": "6mo"
+      },
+      "expected_fields": ["ticker", "indicators", "signals", "overall_signal"]
+    }
+  ]
+}

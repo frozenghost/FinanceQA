@@ -1,4 +1,4 @@
-"""RAG search skill — hybrid BM25 + vector retrieval with BGE ONNX reranking."""
+"""Research skill — knowledge base search and web research."""
 
 import logging
 from pathlib import Path
@@ -8,6 +8,7 @@ import numpy as np
 from langchain_core.tools import tool
 
 from config.settings import settings
+from services.cache_service import cached
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ _tokenizer = None
 
 
 def _get_reranker():
-    """Lazy-load ONNX reranker model (singleton, thread-safe enough for GIL)."""
+    """Lazy-load ONNX reranker model (singleton)."""
     global _onnx_session, _tokenizer
 
     if _onnx_session is not None:
@@ -31,8 +32,7 @@ def _get_reranker():
     if not (model_dir / "model.onnx").exists():
         raise FileNotFoundError(
             f"ONNX reranker model not found at {model_dir}/model.onnx. "
-            "Please run the download script first:\n"
-            "  uv run --with optimum --with torch python scripts/download_reranker.py"
+            "Please run: uv run python scripts/download_reranker.py"
         )
 
     _tokenizer = AutoTokenizer.from_pretrained(str(model_dir))
@@ -45,7 +45,7 @@ def _get_reranker():
 
 
 def _get_vectordb():
-    """Lazy-load ChromaDB to avoid import-time failures."""
+    """Lazy-load ChromaDB."""
     from langchain_chroma import Chroma
     from services.embedding import get_embeddings
 
@@ -57,7 +57,7 @@ def _get_vectordb():
 
 
 def _bm25_search(query: str, documents: list[dict[str, Any]], top_k: int = 10) -> list[dict]:
-    """BM25 keyword-based search over document texts with improved tokenization."""
+    """BM25 keyword-based search with improved tokenization."""
     from rank_bm25 import BM25Okapi
     import jieba
 
@@ -66,7 +66,6 @@ def _bm25_search(query: str, documents: list[dict[str, Any]], top_k: int = 10) -
 
     corpus = [doc["page_content"] for doc in documents]
     
-    # 改进分词：中文用jieba，英文用空格
     def tokenize(text: str) -> list[str]:
         if any('\u4e00' <= c <= '\u9fff' for c in text):
             return list(jieba.cut_for_search(text))
@@ -84,15 +83,14 @@ def _bm25_search(query: str, documents: list[dict[str, Any]], top_k: int = 10) -
 
 
 def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[tuple[int, float]]:
-    """Rerank using BGE-reranker-v2-m3 (ONNX). Returns list of (index, score) tuples."""
+    """Rerank using BGE-reranker-v2-m3 (ONNX)."""
     if not documents:
         return []
 
     try:
         session, tokenizer = _get_reranker()
 
-        # Build query-document pairs for cross-encoder scoring
-        pairs = [[query, doc[:512]] for doc in documents]  # 截断过长文本
+        pairs = [[query, doc[:512]] for doc in documents]
         inputs = tokenizer(
             pairs,
             padding=True,
@@ -101,40 +99,37 @@ def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[tuple[int,
             return_tensors="np",
         )
 
-        # Run ONNX inference
         ort_inputs = {k: v for k, v in inputs.items() if k in ("input_ids", "attention_mask", "token_type_ids")}
         outputs = session.run(None, ort_inputs)
 
-        # BGE reranker outputs logits; higher = more relevant
         scores = outputs[0]
         if len(scores.shape) > 1:
             scores = scores[:, 0]
         scores = scores.flatten()
 
-        # Return (index, score) pairs sorted by score descending
         scored_indices = [(i, float(scores[i])) for i in range(len(scores))]
         scored_indices.sort(key=lambda x: x[1], reverse=True)
         return scored_indices[:top_n]
 
     except Exception as e:
         logger.warning(f"BGE rerank 失败，回退到原始排序: {e}")
-        # 回退时返回带默认分数的结果
         return [(i, 0.0) for i in range(min(top_n, len(documents)))]
 
 
 @tool
 def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     """
-    在金融知识库中进行混合检索（向量相似度 + BM25 关键词），并用 BGE 重排序。
-    - query: 用户问题，如 "什么是市盈率"、"阿里巴巴的 ROE 是多少"
-    - top_k: 返回最相关的文档数量，默认 5
-    用于回答金融概念解释、公司财务指标、行业术语等知识性问题。
-    如果知识库中没有相关内容，请如实告知，不要编造答案。
+    在金融知识库中搜索相关信息（混合检索：向量+BM25+重排序）。
+    - query: 搜索问题，如 "什么是市盈率"、"ROE如何计算"
+    - top_k: 返回结果数量，默认 5
+    返回最相关的知识库文档片段，包含内容、来源和相关性评分。
+    适用于金融概念解释、指标定义、行业知识等场景。
+    如果知识库中没有相关内容，请明确告知用户，不要编造答案。
     """
     try:
         vectordb = _get_vectordb()
 
-        # 1. Vector similarity search with scores
+        # 1. Vector similarity search
         vector_results_with_scores = vectordb.similarity_search_with_score(query, k=top_k * 3)
         vector_docs = [
             {
@@ -145,44 +140,32 @@ def search_knowledge_base(query: str, top_k: int = 5) -> dict:
             for doc, score in vector_results_with_scores
         ]
 
-        # 2. BM25 keyword search (优化：只在向量召回的候选集上做BM25)
+        # 2. BM25 keyword search
         bm25_docs = []
         if vector_docs:
             try:
                 bm25_docs = _bm25_search(query, vector_docs, top_k=top_k * 2)
             except Exception as e:
-                logger.warning(f"BM25 检索失败，仅使用向量检索: {e}")
+                logger.warning(f"BM25 检索失败: {e}")
 
-        # 3. Merge and deduplicate (改进：用完整内容hash + 相邻chunk合并)
+        # 3. Merge and deduplicate
         seen = set()
         merged = []
-        parent_chunks = {}  # 用于合并同一文档的相邻chunks
         
         for doc in vector_docs + bm25_docs:
             content_hash = hash(doc["page_content"])
             if content_hash not in seen:
                 seen.add(content_hash)
-                
-                # 尝试合并相邻chunks
-                parent_id = doc["metadata"].get("parent_doc_id")
-                chunk_idx = doc["metadata"].get("chunk_index")
-                
-                if parent_id and chunk_idx is not None:
-                    key = f"{parent_id}_{chunk_idx}"
-                    if key not in parent_chunks:
-                        parent_chunks[key] = doc
-                        merged.append(doc)
-                else:
-                    merged.append(doc)
+                merged.append(doc)
 
         if not merged:
             return {
                 "query": query,
                 "results": [],
-                "message": "知识库中未找到相关内容",
+                "message": "知识库中未找到相关内容，建议使用 search_web 工具搜索最新信息",
             }
 
-        # 4. Rerank with BGE-reranker-v2-m3 (ONNX)
+        # 4. Rerank with BGE
         texts = [doc["page_content"] for doc in merged]
         ranked_results = _rerank(query, texts, top_n=top_k)
 
@@ -194,8 +177,7 @@ def search_knowledge_base(query: str, top_k: int = 5) -> dict:
                     "content": doc["page_content"],
                     "source": doc["metadata"].get("source", "unknown"),
                     "type": doc["metadata"].get("type", "unknown"),
-                    "rerank_score": rerank_score,
-                    "vector_score": doc.get("vector_score"),
+                    "relevance_score": rerank_score,
                 })
 
         return {
@@ -212,3 +194,41 @@ def search_knowledge_base(query: str, top_k: int = 5) -> dict:
             "results": [],
             "error": f"检索失败: {str(e)}",
         }
+
+
+@tool
+@cached(key_prefix="web", ttl=900)
+def search_web(query: str, max_results: int = 5) -> dict:
+    """
+    使用 Tavily 搜索引擎进行实时网络搜索。
+    - query: 搜索关键词
+    - max_results: 返回结果数量，默认 5
+    返回最新的网络搜索结果，包含标题、内容摘要和来源链接。
+    适用于获取最新资讯、实时事件、最新公告等知识库中没有的信息。
+    """
+    if not settings.TAVILY_API_KEY:
+        return {"error": "Tavily API key 未配置，无法进行网络搜索"}
+
+    try:
+        from tavily import TavilyClient
+
+        tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
+        response = tavily.search(query, max_results=max_results)
+
+        results = []
+        for r in response.get("results", []):
+            results.append({
+                "title": r.get("title", ""),
+                "content": r.get("content", ""),
+                "url": r.get("url", ""),
+                "score": r.get("score", 0),
+            })
+
+        return {
+            "query": query,
+            "results": results,
+            "data_source": "Tavily",
+        }
+    except Exception as e:
+        logger.error(f"Tavily 搜索失败: {e}")
+        return {"error": f"网络搜索失败: {str(e)}"}

@@ -1,4 +1,4 @@
-"""News skill — fetches financial news via NewsAPI with LLM-friendly summaries."""
+"""News and sentiment skill — financial news and market sentiment analysis."""
 
 import logging
 
@@ -16,9 +16,10 @@ logger = logging.getLogger(__name__)
 def get_financial_news(query: str, page_size: int = 5) -> dict:
     """
     获取与查询相关的最新金融新闻。
-    - query: 搜索关键词，如 "阿里巴巴财报"、"Tesla earnings"
+    - query: 搜索关键词，如公司名称、行业、事件等
     - page_size: 返回新闻数量，默认 5 条
-    返回新闻标题、来源、发布时间和摘要的列表。
+    返回新闻标题、来源、发布时间、摘要和链接。
+    适用于了解最新市场动态、公司新闻、行业事件等场景。
     """
     if not settings.NEWSAPI_KEY:
         return {"error": "NewsAPI key 未配置，无法获取新闻"}
@@ -46,6 +47,7 @@ def get_financial_news(query: str, page_size: int = 5) -> dict:
             "query": query,
             "total_results": response.get("totalResults", 0),
             "articles": articles,
+            "data_source": "NewsAPI",
         }
     except Exception as e:
         logger.error(f"NewsAPI 请求失败: {e}")
