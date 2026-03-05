@@ -20,52 +20,60 @@ async def calculate_technical_indicators(
     interval: str = "1d"
 ) -> dict:
     """
-    计算股票的技术指标：移动平均线、RSI、MACD、布林带等。
-    - ticker: 股票代码
-    - start: 开始日期，格式 YYYY-MM-DD（必需）
-    - end: 结束日期，格式 YYYY-MM-DD（必需）
-    - interval: 数据粒度，支持 1d(日线)/1wk(周线)/1mo(月线)（默认 1d）
-    返回常用技术指标的当前值和技术信号判断。
-    适用于技术分析、买卖信号判断、趋势识别等场景。
+    Calculate technical indicators for a stock: moving averages, RSI, MACD, Bollinger Bands, etc.
+    - ticker: Stock symbol
+    - start: Start date, format YYYY-MM-DD (required)
+    - end: End date, format YYYY-MM-DD (required)
+    - interval: Data granularity, supports 1d / 1wk / 1mo (default 1d)
+    Returns current values of common indicators and derived trading signals.
+    Useful for technical analysis, signal generation, and trend identification.
     
-    注意：计算技术指标需要足够的数据点，建议：
-    - 日线数据：至少 20 个交易日（约 1 个月）
-    - 周线数据：至少 20 周（约 5 个月）
-    - 月线数据：至少 20 个月（约 2 年）
+    Note: enough data points are required:
+    - Daily data: at least 20 trading days (~1 month)
+    - Weekly data: at least 20 weeks (~5 months)
+    - Monthly data: at least 20 months (~2 years)
     
-    示例：
-    - calculate_technical_indicators("AAPL", start="2024-01-01", end="2024-03-31")  # Q1 数据
-    - calculate_technical_indicators("AAPL", start="2023-01-01", end="2024-01-01")  # 1 年数据
+    Examples:
+    - calculate_technical_indicators("AAPL", start="2024-01-01", end="2024-03-31")  # Q1 data
+    - calculate_technical_indicators("AAPL", start="2023-01-01", end="2024-01-01")  # 1 year of data
     """
     try:
         import asyncio
         import pandas_ta as ta
 
         time_range = f"start={start}, end={end}"
-        logger.info(f"[calculate_technical_indicators] 开始计算 {ticker} 技术指标: start={start}, end={end}, interval={interval}")
+        logger.info(
+            f"[calculate_technical_indicators] Start calculating indicators for {ticker}: "
+            f"start={start}, end={end}, interval={interval}"
+        )
 
         loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
         
-        # 获取历史数据
+        # Fetch historical data
         hist = await loop.run_in_executor(None, lambda: tk.history(start=start, end=end, interval=interval))
 
         if hist.empty:
-            return {"error": f"未找到 {ticker} 的历史数据"}
+            return {"error": f"No historical data found for {ticker}"}
 
         data_points = len(hist)
         
-        # 根据数据点数量动态调整指标参数
+        # Adjust indicator parameters dynamically based on data size
         if data_points < 20:
-            return {"error": f"数据不足，无法计算技术指标（需要至少20个数据点，当前仅 {data_points} 个）。建议扩大时间范围。"}
+            return {
+                "error": (
+                    "Not enough data to compute technical indicators "
+                    f"(need at least 20 points, got {data_points}). Consider expanding the time range."
+                )
+            }
         
         df = hist.copy()
 
-        # 动态计算指标参数（确保不超过可用数据点）
-        # 移动平均线：使用数据点的比例
-        sma_short = min(5, max(3, data_points // 12))  # 短期均线：约1/12数据
-        sma_mid = min(20, max(5, data_points // 3))    # 中期均线：约1/3数据
-        sma_long = min(60, max(10, data_points * 2 // 3))  # 长期均线：约2/3数据
+        # Dynamically derive indicator parameters (avoid exceeding available points)
+        # Moving averages: use fractions of data length
+        sma_short = min(5, max(3, data_points // 12))  # short-term MA: ~1/12 of data
+        sma_mid = min(20, max(5, data_points // 3))    # mid-term MA: ~1/3 of data
+        sma_long = min(60, max(10, data_points * 2 // 3))  # long-term MA: ~2/3 of data
         
         ema_fast = min(12, max(5, data_points // 5))
         ema_slow = min(26, max(10, data_points // 2))
@@ -74,7 +82,7 @@ async def calculate_technical_indicators(
         atr_period = min(14, max(7, data_points // 4))
         bb_period = min(20, max(10, data_points // 3))
 
-        # 移动平均线
+        # Moving averages
         df["SMA_short"] = ta.sma(df["Close"], length=sma_short)
         df["SMA_mid"] = ta.sma(df["Close"], length=sma_mid)
         df["SMA_long"] = ta.sma(df["Close"], length=sma_long)
@@ -84,62 +92,74 @@ async def calculate_technical_indicators(
         # RSI
         df["RSI"] = ta.rsi(df["Close"], length=rsi_period)
 
-        # MACD (只在数据足够时计算)
+        # MACD (only calculate when enough data)
         if data_points >= 35:
             macd = ta.macd(df["Close"], fast=ema_fast, slow=ema_slow, signal=9)
             if macd is not None:
                 df = pd.concat([df, macd], axis=1)
 
-        # 布林带
+        # Bollinger Bands
         bbands = ta.bbands(df["Close"], length=bb_period, std=2)
         if bbands is not None:
             df = pd.concat([df, bbands], axis=1)
 
-        # ATR (波动率)
+        # ATR (Volatility)
         df["ATR"] = ta.atr(df["High"], df["Low"], df["Close"], length=atr_period)
 
         latest = df.iloc[-1]
         current_price = float(latest["Close"])
 
-        # 生成技术信号
+        # Generate signals
         signals = []
         signal_strength = {"bullish": 0, "bearish": 0}
 
-        # 均线信号
+        # Moving-average signals
         sma_short_val = latest.get("SMA_short")
         sma_mid_val = latest.get("SMA_mid")
         sma_long_val = latest.get("SMA_long")
         
         if pd.notna(sma_short_val) and pd.notna(sma_mid_val):
             if sma_short_val > sma_mid_val:
-                signals.append(f"短期均线({sma_short}日)上穿中期均线({sma_mid}日)，短期看涨")
+                signals.append(
+                    f"Short-term MA ({sma_short}) crossing above mid-term MA ({sma_mid}) — short-term bullish."
+                )
                 signal_strength["bullish"] += 1
             else:
-                signals.append(f"短期均线({sma_short}日)下穿中期均线({sma_mid}日)，短期看跌")
+                signals.append(
+                    f"Short-term MA ({sma_short}) crossing below mid-term MA ({sma_mid}) — short-term bearish."
+                )
                 signal_strength["bearish"] += 1
 
         if pd.notna(sma_mid_val) and pd.notna(sma_long_val):
             if sma_mid_val > sma_long_val:
-                signals.append(f"中期均线({sma_mid}日)在长期均线({sma_long}日)上方，中期趋势向上")
+                signals.append(
+                    f"Mid-term MA ({sma_mid}) above long-term MA ({sma_long}) — medium-term uptrend."
+                )
                 signal_strength["bullish"] += 1
             else:
-                signals.append(f"中期均线({sma_mid}日)在长期均线({sma_long}日)下方，中期趋势向下")
+                signals.append(
+                    f"Mid-term MA ({sma_mid}) below long-term MA ({sma_long}) — medium-term downtrend."
+                )
                 signal_strength["bearish"] += 1
 
-        # RSI 信号
+        # RSI signal
         rsi = latest.get("RSI")
         if pd.notna(rsi):
             rsi_val = float(rsi)
             if rsi_val > 70:
-                signals.append(f"RSI({rsi_period})={rsi_val:.1f}，超买区域，可能回调")
+                signals.append(
+                    f"RSI({rsi_period})={rsi_val:.1f} — overbought zone, pullback risk."
+                )
                 signal_strength["bearish"] += 1
             elif rsi_val < 30:
-                signals.append(f"RSI({rsi_period})={rsi_val:.1f}，超卖区域，可能反弹")
+                signals.append(
+                    f"RSI({rsi_period})={rsi_val:.1f} — oversold zone, rebound potential."
+                )
                 signal_strength["bullish"] += 1
             else:
-                signals.append(f"RSI({rsi_period})={rsi_val:.1f}，正常区间")
+                signals.append(f"RSI({rsi_period})={rsi_val:.1f} — neutral range.")
 
-        # MACD 信号
+        # MACD signal
         macd_col = f"MACD_{ema_fast}_{ema_slow}_9"
         macd_signal_col = f"MACDs_{ema_fast}_{ema_slow}_9"
         macd_hist_col = f"MACDh_{ema_fast}_{ema_slow}_9"
@@ -150,13 +170,13 @@ async def calculate_technical_indicators(
         
         if pd.notna(macd_val) and pd.notna(macd_signal):
             if float(macd_val) > float(macd_signal):
-                signals.append("MACD在信号线上方，动能看涨")
+                signals.append("MACD above signal line — bullish momentum.")
                 signal_strength["bullish"] += 1
             else:
-                signals.append("MACD在信号线下方，动能看跌")
+                signals.append("MACD below signal line — bearish momentum.")
                 signal_strength["bearish"] += 1
 
-        # 布林带信号
+        # Bollinger Band signal
         bb_upper_col = f"BBU_{bb_period}_2.0"
         bb_lower_col = f"BBL_{bb_period}_2.0"
         bb_mid_col = f"BBM_{bb_period}_2.0"
@@ -167,19 +187,19 @@ async def calculate_technical_indicators(
         
         if pd.notna(bb_upper) and pd.notna(bb_lower):
             if current_price > float(bb_upper):
-                signals.append("价格突破布林带上轨，可能超买")
+                signals.append("Price broke above Bollinger upper band — potential overbought.")
                 signal_strength["bearish"] += 1
             elif current_price < float(bb_lower):
-                signals.append("价格跌破布林带下轨，可能超卖")
+                signals.append("Price broke below Bollinger lower band — potential oversold.")
                 signal_strength["bullish"] += 1
 
-        # 综合判断
+        # Overall signal
         if signal_strength["bullish"] > signal_strength["bearish"]:
-            overall_signal = "看涨"
+            overall_signal = "bullish"
         elif signal_strength["bearish"] > signal_strength["bullish"]:
-            overall_signal = "看跌"
+            overall_signal = "bearish"
         else:
-            overall_signal = "中性"
+            overall_signal = "neutral"
 
         return {
             "ticker": ticker,
@@ -223,10 +243,10 @@ async def calculate_technical_indicators(
             "signals": signals,
             "overall_signal": overall_signal,
             "signal_strength": signal_strength,
-            "data_source": "市场数据服务",
-            "disclaimer": "技术指标仅供参考，不构成投资建议",
+            "data_source": "market_data_service",
+            "disclaimer": "Technical indicators are for reference only and do not constitute investment advice.",
         }
     
     except Exception as e:
-        logger.error(f"技术指标计算失败 {ticker}: {e}")
-        return {"error": f"技术指标计算失败: {str(e)}"}
+        logger.error(f"Failed to calculate technical indicators for {ticker}: {e}")
+        return {"error": f"Failed to calculate technical indicators: {str(e)}"}

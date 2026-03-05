@@ -32,6 +32,7 @@ dependencies = [
     "wikipedia>=1.4.0",
     "optimum[onnxruntime]>=2.1.0",
     "json-repair>=0.58.3",
+    "langchain>=1.2.10",
 ]
 
 [tool.uv]

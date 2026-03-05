@@ -61,10 +61,10 @@ async def query_agent(req: QueryRequest):
                     if metadata.get("langgraph_node") == "coordinator" and not coordinator_data_sent:
                         output = event["data"].get("output", {})
                         if output and isinstance(output, dict):
-                            # 发送 Markdown 内容用于前端显示
+                            # Send Markdown content for frontend display
                             markdown_content = output.get("coordinator_markdown", "")
                             if markdown_content:
-                                # 发送一个特殊的 token 来标记协调器思考完成
+                                # Send a special token to mark coordinator thinking complete
                                 yield f"data: {json.dumps({'type': 'thinking_complete', 'markdown': markdown_content}, default=str)}\n\n"
                                 coordinator_data_sent = True
 
@@ -101,7 +101,7 @@ async def query_agent(req: QueryRequest):
                     metadata_payload = None
                     try:
                         if isinstance(output, str):
-                            # 使用 json_repair 解析工具返回的 JSON 字符串，兼容轻微格式问题
+                            # Use json_repair to parse tool-returned JSON strings, tolerate minor format issues
                             parsed = json_repair.loads(output)
                         else:
                             parsed = output

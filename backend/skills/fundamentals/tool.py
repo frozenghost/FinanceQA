@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 @cached(key_prefix="fundamentals", ttl=86400)
 async def get_company_fundamentals(ticker: str) -> dict:
     """
-    获取公司基本面数据和财务指标。
-    - ticker: 股票代码
-    返回市盈率、市净率、ROE、利润率、EPS、营收等关键财务指标。
-    适用于基本面分析、估值评估、财务健康度判断等场景。
+    Get company fundamental data and financial metrics.
+    - ticker: Stock symbol
+    Returns key financial indicators such as P/E ratio, P/B ratio, ROE, profit margin, EPS, revenue, etc.
+    Suitable for fundamental analysis, valuation assessment, and financial health evaluation.
     """
-    logger.info(f"[get_company_fundamentals] 开始获取 {ticker} 的基本面数据")
+    logger.info(f"[get_company_fundamentals] Starting to fetch fundamentals for {ticker}")
     
     try:
         import asyncio
@@ -29,8 +29,8 @@ async def get_company_fundamentals(ticker: str) -> dict:
         info = await loop.run_in_executor(None, lambda: tk.info)
 
         if not info:
-            logger.warning(f"[get_company_fundamentals] 未找到 {ticker} 的基本面数据")
-            return {"error": f"未找到 {ticker} 的基本面数据"}
+            logger.warning(f"[get_company_fundamentals] No fundamentals found for {ticker}")
+            return {"error": f"No fundamentals found for {ticker}"}
 
         result = {
             "ticker": ticker,
@@ -77,35 +77,35 @@ async def get_company_fundamentals(ticker: str) -> dict:
                 "dividend_yield": info.get("dividendYield"),
                 "payout_ratio": info.get("payoutRatio"),
             },
-            "data_source": "财务数据服务",
-            "disclaimer": "数据来自公开财报，仅供参考",
+            "data_source": "Financial Data Service",
+            "disclaimer": "Data from public filings, for reference only",
         }
         
-        logger.info(f"[get_company_fundamentals] 成功获取 {ticker} 基本面: PE={result['valuation']['pe_ratio']}, ROE={result['profitability']['roe']}")
+        logger.info(f"[get_company_fundamentals] Successfully fetched {ticker} fundamentals: PE={result['valuation']['pe_ratio']}, ROE={result['profitability']['roe']}")
         return result
         
     except Exception as e:
-        logger.error(f"[get_company_fundamentals] 获取基本面数据失败 {ticker}: {e}", exc_info=True)
-        return {"error": f"获取基本面数据失败: {str(e)}"}
+        logger.error(f"[get_company_fundamentals] Failed to fetch fundamentals for {ticker}: {e}", exc_info=True)
+        return {"error": f"Failed to fetch fundamentals: {str(e)}"}
 
 
 @tool
 @cached(key_prefix="earnings", ttl=86400)
 async def get_earnings_history(ticker: str) -> dict:
     """
-    获取公司历史财报数据（季度和年度）。
-    - ticker: 股票代码
-    返回最近几个季度和年度的营收、净利润、EPS等财报数据。
-    适用于财报分析、业绩趋势判断、同比环比对比等场景。
+    Get company historical earnings data (quarterly and annual).
+    - ticker: Stock symbol
+    Returns revenue, net income, EPS and other earnings data for recent quarters and years.
+    Suitable for earnings analysis, performance trend evaluation, YoY and QoQ comparisons.
     """
-    logger.info(f"[get_earnings_history] 开始获取 {ticker} 的财报历史")
+    logger.info(f"[get_earnings_history] Starting to fetch earnings history for {ticker}")
     
     try:
         import asyncio
         loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
         
-        # 使用新的 API：income_stmt 和 quarterly_income_stmt
+        # Use new API: income_stmt and quarterly_income_stmt
         quarterly_income, annual_income = await asyncio.gather(
             loop.run_in_executor(None, lambda: tk.quarterly_income_stmt),
             loop.run_in_executor(None, lambda: tk.income_stmt)
@@ -115,16 +115,16 @@ async def get_earnings_history(ticker: str) -> dict:
             "ticker": ticker,
             "quarterly": [],
             "annual": [],
-            "data_source": "财务数据服务",
+            "data_source": "Financial Data Service",
         }
 
-        # 处理季度数据
+        # Process quarterly data
         if quarterly_income is not None and not quarterly_income.empty:
-            # income_stmt 的数据是列为日期，行为指标
-            for col in list(quarterly_income.columns)[:8]:  # 最近8个季度
+            # Data is columns as dates, rows as metrics
+            for col in list(quarterly_income.columns)[:8]:  # Last 8 quarters
                 date_str = col.strftime("%Y-%m-%d") if hasattr(col, "strftime") else str(col)
                 
-                # 从 income statement 中提取数据
+                # Extract data from income statement
                 revenue = quarterly_income.loc["Total Revenue", col] if "Total Revenue" in quarterly_income.index else None
                 net_income = quarterly_income.loc["Net Income", col] if "Net Income" in quarterly_income.index else None
                 
@@ -134,13 +134,13 @@ async def get_earnings_history(ticker: str) -> dict:
                     "earnings": float(net_income) if net_income is not None and not pd.isna(net_income) else None,
                 })
 
-        # 处理年度数据
+        # Process annual data
         if annual_income is not None and not annual_income.empty:
-            # income_stmt 的数据是列为日期，行为指标
-            for col in list(annual_income.columns)[:5]:  # 最近5年
+            # Data is columns as dates, rows as metrics
+            for col in list(annual_income.columns)[:5]:  # Last 5 years
                 date_str = col.strftime("%Y") if hasattr(col, "strftime") else str(col)
                 
-                # 从 income statement 中提取数据
+                # Extract data from income statement
                 revenue = annual_income.loc["Total Revenue", col] if "Total Revenue" in annual_income.index else None
                 net_income = annual_income.loc["Net Income", col] if "Net Income" in annual_income.index else None
                 
@@ -151,12 +151,12 @@ async def get_earnings_history(ticker: str) -> dict:
                 })
 
         if not result["quarterly"] and not result["annual"]:
-            logger.warning(f"[get_earnings_history] 未找到 {ticker} 的财报数据")
-            return {"error": f"未找到 {ticker} 的财报数据"}
+            logger.warning(f"[get_earnings_history] No earnings data found for {ticker}")
+            return {"error": f"No earnings data found for {ticker}"}
 
-        logger.info(f"[get_earnings_history] 成功获取 {ticker} 财报: {len(result['quarterly'])} 个季度, {len(result['annual'])} 个年度")
+        logger.info(f"[get_earnings_history] Successfully fetched {ticker} earnings: {len(result['quarterly'])} quarters, {len(result['annual'])} years")
         return result
         
     except Exception as e:
-        logger.error(f"[get_earnings_history] 获取财报数据失败 {ticker}: {e}", exc_info=True)
-        return {"error": f"获取财报数据失败: {str(e)}"}
+        logger.error(f"[get_earnings_history] Failed to fetch earnings for {ticker}: {e}", exc_info=True)
+        return {"error": f"Failed to fetch earnings: {str(e)}"}

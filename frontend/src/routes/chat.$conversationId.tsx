@@ -66,11 +66,11 @@ function ConversationPage() {
     const text = input.trim();
     setInput("");
     try {
-      // 已在某个对话页：继续在当前会话中发送
+      // Already on a conversation page: continue sending in current session
       if (conversationId) {
         await send(text);
       } else {
-        // 没有会话 ID 时，新建会话并跳转
+        // No conversation ID: create new session and navigate
         await chatStorage.init();
         const newId = await chatStorage.createConversation(text);
         navigate({
@@ -123,7 +123,7 @@ function ConversationPage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="发送消息 (Shift + Enter 换行)..."
+              placeholder="Send a message (Shift + Enter for new line)..."
               className="w-full bg-transparent px-5 py-4 pr-16 text-slate-50 placeholder:text-slate-500 focus:outline-none resize-none min-h-[60px] max-h-32 overflow-y-auto block rounded-2xl"
               rows={1}
               disabled={isLoading}
@@ -134,7 +134,7 @@ function ConversationPage() {
                   type="button"
                   onClick={stop}
                   className="p-2.5 bg-slate-800/80 text-slate-200 hover:bg-slate-700 rounded-xl transition-colors border border-slate-600/80"
-                  title="停止生成"
+                  title="Stop generating"
                 >
                   <Square className="w-5 h-5 fill-slate-400" />
                 </button>
@@ -143,7 +143,7 @@ function ConversationPage() {
                   type="submit"
                   disabled={!input.trim()}
                   className="p-2.5 bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-400 rounded-xl transition-colors shadow-[0_16px_40px_rgba(16,185,129,0.7)] disabled:shadow-none border border-emerald-400/80 disabled:border-slate-600/80"
-                  title="发送"
+                  title="Send"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -151,7 +151,7 @@ function ConversationPage() {
             </div>
           </form>
           <div className="text-center mt-3 text-xs text-slate-500 font-medium">
-            AI 提供的信息仅供参考，不构成任何投资建议。
+            AI-generated information is for reference only and does not constitute any investment advice.
           </div>
         </div>
       </div>

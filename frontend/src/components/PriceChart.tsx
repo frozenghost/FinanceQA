@@ -44,7 +44,7 @@ export function PriceChart({ data, ticker }: Props) {
   return (
     <div className="w-full">
       <div className="text-xs text-emerald-300 mb-2 font-medium bg-slate-950/80 px-2 py-1 rounded-md w-fit border border-emerald-500/40 shadow-[0_10px_28px_rgba(15,23,42,0.9)]">
-        {ticker} 走势图
+        {ticker} Price Chart
       </div>
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={chartData}>

@@ -15,12 +15,12 @@ logger = logging.getLogger(__name__)
 @cached(key_prefix="quote", ttl=60)
 async def get_real_time_quote(ticker: str) -> dict:
     """
-    获取股票实时报价和基本信息。
-    - ticker: 股票代码，如 BABA、TSLA、0700.HK、^GSPC
-    返回当前价格、日内涨跌幅、成交量、52周高低点等实时数据。
-    适用于快速查询当前价格、盘中表现等场景。
+    Fetch real-time stock quote and basic information.
+    - ticker: Stock symbol, e.g. BABA, TSLA, 0700.HK, ^GSPC
+    Returns current price, intraday performance, volume, 52‑week high/low and other real-time fields.
+    Suitable for quick checks of current price and intraday performance.
     """
-    logger.info(f"[get_real_time_quote] 开始获取 {ticker} 的实时报价")
+    logger.info(f"[get_real_time_quote] Start fetching real-time quote for {ticker}")
     
     try:
         import asyncio
@@ -29,8 +29,8 @@ async def get_real_time_quote(ticker: str) -> dict:
         info = await loop.run_in_executor(None, lambda: tk.info)
 
         if not info or "currentPrice" not in info:
-            logger.warning(f"[get_real_time_quote] 未找到 {ticker} 的实时报价数据")
-            return {"error": f"未找到 {ticker} 的实时报价"}
+            logger.warning(f"[get_real_time_quote] No real-time quote data found for {ticker}")
+            return {"error": f"Real-time quote not found for {ticker}"}
 
         current = info.get("currentPrice") or info.get("regularMarketPrice")
         prev_close = info.get("previousClose")
@@ -50,16 +50,19 @@ async def get_real_time_quote(ticker: str) -> dict:
             "52_week_low": info.get("fiftyTwoWeekLow"),
             "currency": info.get("currency", "USD"),
             "exchange": info.get("exchange"),
-            "data_source": "市场数据服务",
-            "delay_note": "数据约有 15 分钟延迟",
+            "data_source": "market_data_service",
+            "delay_note": "Quotes may be delayed by up to ~15 minutes.",
         }
         
-        logger.info(f"[get_real_time_quote] 成功获取 {ticker} 报价: ${result['current_price']} ({result['change_percent']:+.2f}%)")
+        logger.info(
+            f"[get_real_time_quote] Successfully fetched quote for {ticker}: "
+            f"${result['current_price']} ({result['change_percent']:+.2f}%)"
+        )
         return result
         
     except Exception as e:
-        logger.error(f"[get_real_time_quote] 获取实时报价失败 {ticker}: {e}", exc_info=True)
-        return {"error": f"获取实时报价失败: {str(e)}"}
+        logger.error(f"[get_real_time_quote] Failed to fetch real-time quote for {ticker}: {e}", exc_info=True)
+        return {"error": f"Failed to fetch real-time quote: {str(e)}"}
 
 
 @tool
@@ -72,50 +75,53 @@ async def get_historical_prices(
     interval: str = "1d",
 ) -> dict:
     """
-    获取股票历史价格数据（OHLCV）。
-    - ticker: 股票代码
-    - period: 时间范围，支持 1d/5d/1mo/3mo/6mo/1y/2y/5y/max（与 start/end 二选一）
-    - start: 开始日期，格式 YYYY-MM-DD（与 period 二选一，需配合 end 使用）
-    - end: 结束日期，格式 YYYY-MM-DD（与 period 二选一，需配合 start 使用）
-    - interval: 数据粒度，支持 1d(日线)/1wk(周线)/1mo(月线)
-    返回完整的 OHLCV 数据列表，包含开盘价、最高价、最低价、收盘价、成交量。
-    适用于绘制K线图、计算技术指标、分析历史走势等场景。
+    Fetch historical OHLCV price data.
+    - ticker: Stock symbol
+    - period: Time range, supports 1d/5d/1mo/3mo/6mo/1y/2y/5y/max (mutually exclusive with start/end)
+    - start: Start date, format YYYY-MM-DD (mutually exclusive with period, must be used with end)
+    - end: End date, format YYYY-MM-DD (mutually exclusive with period, must be used with start)
+    - interval: Data granularity, supports 1d (daily) / 1wk (weekly) / 1mo (monthly)
+    Returns a full OHLCV list with open, high, low, close, volume.
+    Suitable for candlestick charts, technical indicators, and historical analysis.
     
-    示例：
-    - get_historical_prices("AAPL", period="1mo")  # 最近1个月
-    - get_historical_prices("AAPL", start="2024-03-15", end="2024-03-21")  # 指定日期范围
+    Examples:
+    - get_historical_prices("AAPL", period="1mo")  # last 1 month
+    - get_historical_prices("AAPL", start="2024-03-15", end="2024-03-21")  # explicit date range
     """
-    # 参数验证
+    # Parameter validation
     if period and (start or end):
-        return {"error": "period 和 start/end 参数不能同时使用，请选择其一"}
+        return {"error": "Parameters 'period' and 'start/end' cannot be used together; choose one mode."}
     
     if (start and not end) or (end and not start):
-        return {"error": "start 和 end 参数必须同时提供"}
+        return {"error": "Both 'start' and 'end' must be provided together."}
     
     if not period and not start:
-        period = "1mo"  # 默认值
+        period = "1mo"  # default
     
     if period:
         time_range = f"period={period}"
-        logger.info(f"[get_historical_prices] 开始获取 {ticker} 历史数据: period={period}, interval={interval}")
+        logger.info(f"[get_historical_prices] Fetching historical data for {ticker}: period={period}, interval={interval}")
     else:
         time_range = f"start={start}, end={end}"
-        logger.info(f"[get_historical_prices] 开始获取 {ticker} 历史数据: start={start}, end={end}, interval={interval}")
+        logger.info(
+            f"[get_historical_prices] Fetching historical data for {ticker}: "
+            f"start={start}, end={end}, interval={interval}"
+        )
     
     try:
         import asyncio
         loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
         
-        # 根据参数类型获取历史数据
+        # Fetch history based on the chosen parameter mode
         if period:
             hist = await loop.run_in_executor(None, lambda: tk.history(period=period, interval=interval))
         else:
             hist = await loop.run_in_executor(None, lambda: tk.history(start=start, end=end, interval=interval))
 
         if hist.empty:
-            logger.warning(f"[get_historical_prices] 未找到 {ticker} 的历史数据")
-            return {"error": f"未找到 {ticker} 的历史数据"}
+            logger.warning(f"[get_historical_prices] No historical data found for {ticker}")
+            return {"error": f"No historical data found for {ticker}"}
 
         ohlcv = []
         for idx, row in hist.iterrows():
@@ -128,7 +134,7 @@ async def get_historical_prices(
                 "volume": int(row["Volume"]),
             })
 
-        # 计算区间统计
+        # Basic period statistics
         closes = hist["Close"]
         period_return = ((closes.iloc[-1] - closes.iloc[0]) / closes.iloc[0] * 100) if len(closes) > 1 else 0
 
@@ -141,12 +147,15 @@ async def get_historical_prices(
             "period_high": round(float(hist["High"].max()), 2),
             "period_low": round(float(hist["Low"].min()), 2),
             "ohlcv": ohlcv,
-            "data_source": "市场数据服务",
+            "data_source": "market_data_service",
         }
         
-        logger.info(f"[get_historical_prices] 成功获取 {ticker} 历史数据: {len(ohlcv)} 个数据点, 区间收益 {period_return:+.2f}%")
+        logger.info(
+            f"[get_historical_prices] Successfully fetched history for {ticker}: "
+            f"{len(ohlcv)} points, period return {period_return:+.2f}%"
+        )
         return result
         
     except Exception as e:
-        logger.error(f"[get_historical_prices] 获取历史数据失败 {ticker}: {e}", exc_info=True)
-        return {"error": f"获取历史数据失败: {str(e)}"}
+        logger.error(f"[get_historical_prices] Failed to fetch history for {ticker}: {e}", exc_info=True)
+        return {"error": f"Failed to fetch historical data: {str(e)}"}

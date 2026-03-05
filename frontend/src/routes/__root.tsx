@@ -39,7 +39,7 @@ function RootLayout() {
               className="w-full flex items-center justify-center gap-2 bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:text-slate-950 px-4 py-2.5 rounded-2xl transition-all font-medium text-sm shadow-[0_18px_46px_rgba(16,185,129,0.75)] active:scale-[0.98] border border-emerald-400/70"
             >
               <Plus className="w-4 h-4" />
-              开启新对话
+              New Chat
             </button>
           </div>
 
@@ -53,7 +53,7 @@ function RootLayout() {
               }}
             >
               <MessageSquare className="w-4 h-4" />
-              当前对话
+              Current Chat
             </Link>
             <Link
               to="/history"
@@ -64,14 +64,14 @@ function RootLayout() {
               }}
             >
               <History className="w-4 h-4" />
-              历史记录
+              History
             </Link>
           </nav>
 
           <div className="p-4 border-t border-slate-800/80 mx-3 mt-0">
             <button className="flex items-center gap-2 px-2.5 py-2.5 w-full text-xs font-medium text-slate-400 hover:text-emerald-300 hover:bg-slate-900/70 rounded-2xl transition-all hover:shadow-[0_10px_26px_rgba(15,23,42,0.9)]">
               <Settings className="w-4 h-4 text-slate-500" />
-              系统设置
+              Settings
             </button>
           </div>
         </aside>

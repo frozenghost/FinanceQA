@@ -19,7 +19,7 @@ function HistoryPage() {
     conversationId: string
   ) => {
     e.stopPropagation();
-    if (confirm("确定要删除这条对话记录吗？")) {
+    if (confirm("Are you sure you want to delete this conversation?")) {
       await deleteConversation(conversationId);
     }
   };
@@ -36,16 +36,16 @@ function HistoryPage() {
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
     if (days === 0) {
-      return date.toLocaleTimeString("zh-CN", {
+      return date.toLocaleTimeString("en-US", {
         hour: "2-digit",
         minute: "2-digit",
       });
     } else if (days === 1) {
-      return "昨天";
+      return "Yesterday";
     } else if (days < 7) {
-      return `${days} 天前`;
+      return `${days} days ago`;
     } else {
-      return date.toLocaleDateString("zh-CN", {
+      return date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       });
@@ -58,10 +58,10 @@ function HistoryPage() {
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-50 tracking-tight">
-              历史记录
+              History
             </h1>
             <p className="text-sm text-slate-400 mt-1">
-              共 {conversations.length} 条对话
+              {conversations.length} conversation{conversations.length !== 1 ? "s" : ""} total
             </p>
           </div>
           {conversations.length > 0 && (
@@ -70,7 +70,7 @@ function HistoryPage() {
               className="flex items-center gap-2 px-4 py-2 text-sm text-pink-300 bg-slate-900/70 border border-pink-500/40 hover:bg-pink-500/10 hover:border-pink-500/60 rounded-xl transition-all font-medium shadow-lg"
             >
               <Trash2 className="w-4 h-4" />
-              清空记录
+              Clear All
             </button>
           )}
         </div>
@@ -87,7 +87,7 @@ function HistoryPage() {
                 className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
                 style={{ animationDelay: "300ms" }}
               />
-              <span className="ml-2 text-sm">加载中...</span>
+              <span className="ml-2 text-sm">Loading...</span>
             </div>
           </div>
         ) : conversations.length === 0 ? (
@@ -96,10 +96,10 @@ function HistoryPage() {
               <Clock className="w-8 h-8" />
             </div>
             <h3 className="text-lg font-semibold text-slate-200 mb-2">
-              暂无历史记录
+              No history yet
             </h3>
             <p className="text-slate-400 text-sm max-w-sm text-center leading-relaxed">
-              开始一段新对话，你的聊天记录将自动保存在这里。
+              Start a new conversation and your chat history will be saved here automatically.
             </p>
           </div>
         ) : (
@@ -118,49 +118,49 @@ function HistoryPage() {
                     {conv.title}
                   </h3>
                   <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                    <span>{conv.messageCount} 条消息</span>
+                    <span>{conv.messageCount} message{conv.messageCount !== 1 ? "s" : ""}</span>
                     <span>•</span>
                     <span>{formatDate(conv.updatedAt)}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    onClick={(e) => handleDelete(e, conv.id)}
-                    className="p-2 text-slate-500 hover:text-pink-300 hover:bg-pink-500/10 rounded-lg transition-colors"
-                    title="删除"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                  <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-emerald-400 transition-colors" />
-                </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={(e) => handleDelete(e, conv.id)}
+                      className="p-2 text-slate-500 hover:text-pink-300 hover:bg-pink-500/10 rounded-lg transition-colors"
+                      title="Delete"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-emerald-400 transition-colors" />
+                  </div>
               </button>
             ))}
           </div>
         )}
       </div>
 
-      {/* 确认清空对话框 */}
+      {/* Confirm clear dialog */}
       {showConfirm && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 max-w-md w-full mx-4 shadow-[0_30px_80px_rgba(15,23,42,0.95)]">
             <h3 className="text-lg font-semibold text-slate-50 mb-2">
-              确认清空所有记录？
+              Clear all history?
             </h3>
             <p className="text-sm text-slate-400 mb-6">
-              此操作将永久删除所有对话记录，无法恢复。
+              This will permanently delete all conversations and cannot be undone.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowConfirm(false)}
                 className="flex-1 px-4 py-2.5 bg-slate-800 text-slate-200 hover:bg-slate-700 rounded-xl transition-colors font-medium"
               >
-                取消
+                Cancel
               </button>
               <button
                 onClick={handleClearAll}
                 className="flex-1 px-4 py-2.5 bg-rose-500 text-white hover:bg-rose-600 rounded-xl transition-colors font-medium shadow-lg"
               >
-                确认清空
+                Confirm
               </button>
             </div>
           </div>

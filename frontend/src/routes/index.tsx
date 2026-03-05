@@ -87,18 +87,18 @@ function WelcomePage() {
               <span className="text-2xl">💬</span>
             </div>
             <h1 className="text-2xl font-semibold text-slate-50 mb-3 tracking-tight">
-              你好，我是你的金融助手
+              Hi, I'm your financial assistant
             </h1>
             <p className="text-slate-400 mb-8 max-w-md text-center leading-relaxed">
-              我可以为你分析股票行情、解读技术指标、获取最新的市场新闻，或回答关于金融知识的问题。
+              I can analyze stock quotes, explain technical indicators, get the latest market news, or answer questions about financial concepts.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-2xl">
               {[
-                { title: "行情查询", desc: "AAPL 最近一周的走势如何？" },
-                { title: "技术分析", desc: "帮我看看 TSLA 的技术面" },
-                { title: "知识问答", desc: "什么是市盈率 (PE)？" },
-                { title: "市场资讯", desc: "关于英伟达的最新新闻" },
+                { title: "Quote Query", desc: "How has AAPL performed this week?" },
+                { title: "Technical Analysis", desc: "Show me TSLA's technicals" },
+                { title: "Q&A", desc: "What is P/E ratio?" },
+                { title: "Market News", desc: "Latest news about NVIDIA" },
               ].map((q) => (
                 <button
                   key={q.title}
@@ -128,7 +128,7 @@ function WelcomePage() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="发送消息 (Shift + Enter 换行)..."
+              placeholder="Send a message (Shift + Enter for new line)..."
               className="w-full bg-transparent px-5 py-4 pr-16 text-slate-50 placeholder:text-slate-500 focus:outline-none resize-none min-h-[60px] max-h-32 overflow-y-auto block rounded-2xl"
               rows={1}
             />
@@ -137,14 +137,14 @@ function WelcomePage() {
                 type="submit"
                 disabled={!input.trim()}
                 className="p-2.5 bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-400 rounded-xl transition-colors shadow-[0_16px_40px_rgba(16,185,129,0.7)] disabled:shadow-none border border-emerald-400/80 disabled:border-slate-600/80"
-                title="发送"
+                title="Send"
               >
                 <Send className="w-5 h-5" />
               </button>
             </div>
           </form>
           <div className="text-center mt-3 text-xs text-slate-500 font-medium">
-            AI 提供的信息仅供参考，不构成任何投资建议。
+            AI-generated information is for reference only and does not constitute any investment advice.
           </div>
         </div>
       </div>

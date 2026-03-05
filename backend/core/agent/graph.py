@@ -1,6 +1,6 @@
 """LangGraph ReAct Agent — uses prebuilt create_react_agent."""
 
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 
 from core.agent.state import AgentState
 from prompts.loader import load_system_prompt
@@ -14,7 +14,7 @@ def build_agent():
     llm = LLMClient().get_langchain_model(role="market_analyst")
 
     # Use prebuilt agent — no hand-written nodes or edges
-    agent = create_react_agent(
+    agent = create_agent(
         model=llm,
         tools=ALL_TOOLS,
         state_schema=AgentState,
@@ -31,17 +31,17 @@ def get_agent():
     """
     Get or create the singleton agent instance.
     
-    根据配置选择使用标准模式或协调器模式：
-    - USE_COORDINATOR=True: 使用协调器模式（强制工具使用，减少幻觉）
-    - USE_COORDINATOR=False: 使用标准 ReAct 模式
+    Choose between standard mode or coordinator mode based on configuration:
+    - USE_COORDINATOR=True: Use coordinator mode (force tool usage, reduce hallucinations)
+    - USE_COORDINATOR=False: Use standard ReAct mode
     """
     global _agent
     if _agent is None:
         if settings.USE_COORDINATOR:
-            # 使用协调器模式
+            # Use coordinator mode
             from core.agent.graph_with_coordinator import get_agent_with_coordinator
             _agent = get_agent_with_coordinator()
         else:
-            # 使用标准模式
+            # Use standard mode
             _agent = build_agent()
     return _agent

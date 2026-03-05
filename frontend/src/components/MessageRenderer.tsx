@@ -80,9 +80,14 @@ export function MessageRenderer({ message, isThinking }: Props) {
 
         {/* Inline thinking indicator when assistant is generating */}
         {!isUser && isThinking && (
-          <div className={clsx("mt-3", !message.content && !message.metadata && "mt-0")}>
+          <div
+            className={clsx(
+              "mt-3",
+              !message.content && !message.metadata && "mt-0"
+            )}
+          >
             {!message.content && (
-              <div className="text-xs text-slate-300 mb-1">正在思考</div>
+              <div className="text-xs text-slate-300 mb-1">Thinking</div>
             )}
             <div className="flex gap-1.5 items-center text-slate-400 text-xs">
               <span
@@ -98,7 +103,7 @@ export function MessageRenderer({ message, isThinking }: Props) {
                 style={{ animationDelay: "300ms" }}
               ></span>
               <span className="ml-1.5 font-medium text-xs text-slate-300">
-                正在生成回答...
+                Generating answer...
               </span>
             </div>
           </div>
@@ -142,9 +147,9 @@ function MetadataCardsTop({ metadata }: { metadata: MessageMetadata }) {
 
 function MarketCard({ metadata }: { metadata: MessageMetadata }) {
   const trendIcon =
-    metadata.trend === "上涨" ? (
+    metadata.trend === "up" ? (
       <TrendingUp className="w-4 h-4 text-green-500" />
-    ) : metadata.trend === "下跌" ? (
+    ) : metadata.trend === "down" ? (
       <TrendingDown className="w-4 h-4 text-red-500" />
     ) : (
       <Minus className="w-4 h-4 text-yellow-500" />
@@ -209,7 +214,7 @@ function TechnicalCard({ metadata }: { metadata: MessageMetadata }) {
   return (
     <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl p-4 shadow-[0_18px_45px_rgba(15,23,42,0.95)] backdrop-blur-2xl w-full">
       <div className="text-xs text-slate-300 mb-3 font-semibold uppercase tracking-wider">
-        技术指标
+        Technical indicators
       </div>
       <div className="grid grid-cols-3 gap-3 text-xs">
         {Object.entries(flatIndicators).map(([key, value]) => (
@@ -250,7 +255,8 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
         className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-900/80 hover:bg-slate-800/80 text-xs text-slate-300 font-medium transition-colors border-b border-transparent data-[state=open]:border-slate-700/70"
         data-state={open ? "open" : "closed"}
       >
-        <span>Agent 推理步骤 ({steps.length})</span>
+        <span>Agent reasoning steps ({steps.length})</span>
+        {/* Agent reasoning steps */}
         {open ? (
           <ChevronDown className="w-4 h-4 text-slate-400" />
         ) : (
@@ -314,7 +320,7 @@ function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordi
       >
         <span className="flex items-center gap-2">
           <span className="text-pink-300">🧠</span>
-          <span>协调器思考过程</span>
+          <span>Coordinator thinking process</span>
           {!isComplete && (
             <span className="text-[10px] text-pink-300/80 animate-pulse">思考中…</span>
           )}

@@ -39,15 +39,15 @@ class YahooFinanceFetcher(BaseFetcher):
                 info = yf.Ticker(ticker).info
                 
                 # Build formatted text content
-                lines = [f"# {ticker} 财务摘要（来源：公开财报数据）"]
+                lines = [f"# {ticker} Financial Summary (Source: Public Financial Data)"]
                 field_mapping = {
-                    "trailingPE": "市盈率（P/E）",
-                    "priceToBook": "市净率（P/B）",
+                    "trailingPE": "P/E Ratio",
+                    "priceToBook": "P/B Ratio",
                     "trailingEps": "EPS",
-                    "totalRevenue": "营收（TTM）",
-                    "profitMargins": "净利润率",
+                    "totalRevenue": "Revenue (TTM)",
+                    "profitMargins": "Profit Margin",
                     "returnOnEquity": "ROE",
-                    "industry": "行业"
+                    "industry": "Industry"
                 }
                 
                 for field in self.data_fields:

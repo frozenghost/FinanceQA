@@ -8,24 +8,23 @@ class AgentState(MessagesState):
     """Extended state with financial-domain fields."""
 
     remaining_steps: int = 25       # Required by create_react_agent (recursion limit)
-    ticker: str | None = None       # 解析出的股票代码
+    ticker: str | None = None       # Parsed stock ticker
     query_type: str | None = None   # market / rag / hybrid
-    cache_hits: int = 0             # 缓存命中计数（日志用）
+    cache_hits: int = 0             # Cache hit counter
     
-    # 协调器相关字段
-    tool_plan: list[dict[str, Any]] = []  # 工具调用计划
-    needs_tools: bool = False              # 是否需要工具
-    coordination_reasoning: str = ""       # 协调推理过程
-    coordinator_raw_output: str = ""       # 协调器原始输出（完整）
-    coordinator_markdown: str = ""         # 协调器 Markdown 输出（仅展示部分）
-    executed_tools: list[str] = []         # 已执行的工具列表
-    validation_failed: bool = False        # 验证是否失败
-    retry_count: int = 0                   # 重试次数
+    # Coordinator related fields
+    tool_plan: list[dict[str, Any]] = []  # Tool call plan
+    needs_tools: bool = False              # Whether tools are needed
+    coordination_reasoning: str = ""       # Coordinator reasoning process
+    coordinator_raw_output: str = ""       # Coordinator raw output (full)
+    coordinator_markdown: str = ""         # Coordinator Markdown output (display only)
+    executed_tools: list[str] = []         # List of executed tools
+    validation_failed: bool = False        # Validation status
+    retry_count: int = 0                   # Retry count
     
-    # 错误处理和性能监控
-    error_count: int = 0                   # 工具执行错误计数
-    max_retries: int = 2                   # 最大重试次数
-    last_error: str | None = None          # 最后一个错误信息
-    failed_tools: list[str] = []           # 失败的工具列表
-    tool_execution_times: dict[str, float] = {}  # 工具执行时间统计
-
+    # Error handling and performance monitoring
+    error_count: int = 0                   # Tool execution error counter
+    max_retries: int = 2                   # Maximum retry attempts
+    last_error: str | None = None          # Last error message
+    failed_tools: list[str] = []           # Failed tools list
+    tool_execution_times: dict[str, float] = {}  # Tool execution time statistics

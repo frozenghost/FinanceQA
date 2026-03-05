@@ -16,14 +16,14 @@ logger = logging.getLogger(__name__)
 @cached(key_prefix="news", ttl=1800)
 async def get_financial_news(query: str, page_size: int = 5) -> dict:
     """
-    获取与查询相关的最新金融新闻。
-    - query: 搜索关键词，如公司名称、行业、事件等
-    - page_size: 返回新闻数量，默认 5 条
-    返回新闻标题、来源、发布时间、摘要和链接。
-    适用于了解最新市场动态、公司新闻、行业事件等场景。
+    Get latest financial news related to the query.
+    - query: Search keywords, such as company name, industry, event, etc.
+    - page_size: Number of news items to return, default 5
+    Returns news title, source, publication time, summary, and link.
+    Suitable for understanding latest market dynamics, company news, industry events, etc.
     """
     if not settings.SERPAPI_KEY:
-        return {"error": "SerpAPI key 未配置，无法获取新闻"}
+        return {"error": "SerpAPI key not configured, cannot fetch news"}
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -63,5 +63,5 @@ async def get_financial_news(query: str, page_size: int = 5) -> dict:
         }
     
     except Exception as e:
-        logger.error(f"SerpAPI 请求失败: {e}")
-        return {"error": f"新闻获取失败: {str(e)}"}
+        logger.error(f"SerpAPI request failed: {e}")
+        return {"error": f"Failed to fetch news: {str(e)}"}

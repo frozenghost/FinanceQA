@@ -17,55 +17,55 @@ class Settings(BaseSettings):
     RAG_MODEL: str = "openai/gpt-4o-mini"
     APP_URL: str = "http://localhost:5173"
 
-    # ── 数据 API ──────────────────────────────────────────────
+    # ── Data API ──────────────────────────────────────────────
     SERPAPI_KEY: str = ""
     TAVILY_API_KEY: str = ""
 
-    # ── Reranker（BGE-reranker-v2-m3 ONNX 本地推理）────────
+    # ── Reranker (BGE-reranker-v2-m3 ONNX Local Inference) ─────────
     RERANKER_MODEL_DIR: str = "./models/bge-reranker-v2-m3-onnx"
 
-    # ── Embedding 配置（支持 OpenAI / OpenRouter / 任何兼容接口）──
-    EMBEDDING_API_KEY: str = ""          # 留空则回退到 OPENROUTER_API_KEY
-    EMBEDDING_BASE_URL: str = ""         # 留空则用 OpenAI 默认；设为 OpenRouter 等地址即可切换
+    # ── Embedding Config (Supports OpenAI / OpenRouter / Any Compatible Interface) ───
+    EMBEDDING_API_KEY: str = ""          # Leave empty to fallback to OPENROUTER_API_KEY
+    EMBEDDING_BASE_URL: str = ""         # Leave empty for OpenAI default; set to OpenRouter or other address to switch
     EMBEDDING_MODEL: str = "text-embedding-3-small"
 
-    # ── 兼容旧配置 ───────────────────────────────────────────
-    OPENAI_API_KEY: str = ""             # 如果设了这个，EMBEDDING_API_KEY 留空时也会用它
+    # ── Legacy Config Compatibility ───────────────────────────────────────────
+    OPENAI_API_KEY: str = ""             # If set, EMBEDDING_API_KEY will also use this when empty
 
-    # ── 基础设施 ──────────────────────────────────────────────
+    # ── Infrastructure ──────────────────────────────────────────────
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     CHROMA_DIR: str = "./chroma_db"
     SQLITE_PATH: str = "./logs.db"
 
-    # ── 定时刷新 ──────────────────────────────────────────────
+    # ── Scheduled Refresh ──────────────────────────────────────────────
     KB_REFRESH_CRON_HOUR: int = 2
     KB_REFRESH_ENABLED: bool = True
 
-    # ── 本地知识文件目录（支持 txt, md, docx, pdf）──────────
-    KNOWLEDGE_FILES_DIR: str = ""         # 留空则跳过本地文件加载
-    KNOWLEDGE_FILES_ENABLED: bool = True  # 是否启用本地文件知识源
+    # ── Local Knowledge Files Directory (supports txt, md, docx, pdf) ───────────
+    KNOWLEDGE_FILES_DIR: str = ""         # Leave empty to skip local file loading
+    KNOWLEDGE_FILES_ENABLED: bool = True  # Whether to enable local file knowledge source
 
-    # ── 模型质量评估 ────────────────────────────────────────
+    # ── Model Quality Evaluation ────────────────────────────────────────
     EVAL_DATASET_PATH: str = "./eval/eval_dataset.json"
     EVAL_REPORTS_DIR: str = "./eval/reports"
-    EVAL_JUDGE_MODEL: str = "openai/gpt-4o"  # 用于评分的裁判模型
+    EVAL_JUDGE_MODEL: str = "openai/gpt-4o"  # Judge model for scoring
 
-    # ── 缓存 TTL（秒）────────────────────────────────────────
+    # ── Cache TTL (seconds) ─────────────────────────────────────────
     CACHE_TTL_MARKET: int = 3600
     CACHE_TTL_NEWS: int = 1800
     CACHE_TTL_EMBEDDING: int = 86400
     CACHE_TTL_WEB_SEARCH: int = 900
     CACHE_TTL_TECHNICAL: int = 3600
 
-    # ── 安全 ─────────────────────────────────────────────────
+    # ── Security ─────────────────────────────────────────────────
     ADMIN_TOKEN: str = "your-admin-token"
 
-    # ── 模型覆盖（可选，一行切换所有模型）───────────────────
+    # ── Model Override (Optional, one line to switch all models) ───────────────────
     OVERRIDE_ALL_MODELS: str = ""
 
-    # ── Agent 模式配置 ────────────────────────────────────────
-    USE_COORDINATOR: bool = True  # 是否使用协调器模式（强制工具使用，减少幻觉）
+    # ── Agent Mode Config ────────────────────────────────────────
+    USE_COORDINATOR: bool = True  # Whether to use coordinator mode (force tool usage, reduce hallucinations)
 
 
 settings = Settings()

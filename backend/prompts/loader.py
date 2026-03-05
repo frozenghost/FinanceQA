@@ -29,19 +29,18 @@ def load_system_prompt(strict: bool = False) -> str:
         "Asia/Hong_Kong": "Asia/Hong_Kong",  # HKEX
     }
     
-    time_context = "## 当前时间信息\n\n"
-    time_context += "**重要**：当用户询问\"最新\"、\"最近\"、\"今天\"等时间相关的问题时，请以下面的实际时间为准，而不是你的训练数据截止时间。\n\n"
+    time_context = "## Current Time Information\n\n"
+    time_context += "**Important**: When the user asks about \"latest\", \"recent\", \"today\" or other time-related questions, please base your answer on the actual times below, not on the model's training cutoff.\n\n"
     
     for display_name, tz_name in timezones.items():
         try:
             local_time = utc_now.astimezone(ZoneInfo(tz_name))
             time_context += f"- {display_name}: {local_time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"
         except Exception:
-            # Fallback if timezone not available
             time_context += f"- {display_name}: {utc_now.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
     
-    time_context += f"\n当前日期：{utc_now.strftime('%Y年%m月%d日')}\n"
-    time_context += f"当前星期：{['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'][utc_now.weekday()]}\n\n"
+    time_context += f"\nCurrent Date: {utc_now.strftime('%Y-%m-%d')}\n"
+    time_context += f"Day of Week: {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][utc_now.weekday()]}\n\n"
     
     # Load base prompt
     prompt_file = "react_agent_strict.md" if strict else "react_agent.md"
