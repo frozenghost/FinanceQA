@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @tool
 @cached(key_prefix="ta", ttl=3600)
-def calculate_technical_indicators(ticker: str, period: str = "6mo") -> dict:
+async def calculate_technical_indicators(ticker: str, period: str = "6mo") -> dict:
     """
     计算股票的技术指标：移动平均线、RSI、MACD、布林带等。
     - ticker: 股票代码
@@ -22,10 +22,12 @@ def calculate_technical_indicators(ticker: str, period: str = "6mo") -> dict:
     适用于技术分析、买卖信号判断、趋势识别等场景。
     """
     try:
+        import asyncio
         import pandas_ta as ta
 
+        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        hist = tk.history(period=period)
+        hist = await loop.run_in_executor(None, lambda: tk.history(period=period))
 
         if hist.empty or len(hist) < 60:
             return {"error": f"数据不足，无法计算技术指标（需要至少60个交易日）"}
@@ -162,6 +164,7 @@ def calculate_technical_indicators(ticker: str, period: str = "6mo") -> dict:
             "data_source": "yfinance + pandas-ta",
             "disclaimer": "技术指标仅供参考，不构成投资建议",
         }
+    
     except Exception as e:
         logger.error(f"技术指标计算失败 {ticker}: {e}")
         return {"error": f"技术指标计算失败: {str(e)}"}

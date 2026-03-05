@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @tool
 @cached(key_prefix="fundamentals", ttl=86400)
-def get_company_fundamentals(ticker: str) -> dict:
+async def get_company_fundamentals(ticker: str) -> dict:
     """
     获取公司基本面数据和财务指标。
     - ticker: 股票代码
@@ -23,8 +23,10 @@ def get_company_fundamentals(ticker: str) -> dict:
     logger.info(f"[get_company_fundamentals] 开始获取 {ticker} 的基本面数据")
     
     try:
+        import asyncio
+        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        info = tk.info
+        info = await loop.run_in_executor(None, lambda: tk.info)
 
         if not info:
             logger.warning(f"[get_company_fundamentals] 未找到 {ticker} 的基本面数据")
@@ -89,7 +91,7 @@ def get_company_fundamentals(ticker: str) -> dict:
 
 @tool
 @cached(key_prefix="earnings", ttl=86400)
-def get_earnings_history(ticker: str) -> dict:
+async def get_earnings_history(ticker: str) -> dict:
     """
     获取公司历史财报数据（季度和年度）。
     - ticker: 股票代码
@@ -99,11 +101,15 @@ def get_earnings_history(ticker: str) -> dict:
     logger.info(f"[get_earnings_history] 开始获取 {ticker} 的财报历史")
     
     try:
+        import asyncio
+        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
         
         # 使用新的 API：income_stmt 和 quarterly_income_stmt
-        quarterly_income = tk.quarterly_income_stmt
-        annual_income = tk.income_stmt
+        quarterly_income, annual_income = await asyncio.gather(
+            loop.run_in_executor(None, lambda: tk.quarterly_income_stmt),
+            loop.run_in_executor(None, lambda: tk.income_stmt)
+        )
 
         result = {
             "ticker": ticker,

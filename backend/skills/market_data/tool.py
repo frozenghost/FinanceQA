@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @tool
 @cached(key_prefix="quote", ttl=60)
-def get_real_time_quote(ticker: str) -> dict:
+async def get_real_time_quote(ticker: str) -> dict:
     """
     获取股票实时报价和基本信息。
     - ticker: 股票代码，如 BABA、TSLA、0700.HK、^GSPC
@@ -23,8 +23,10 @@ def get_real_time_quote(ticker: str) -> dict:
     logger.info(f"[get_real_time_quote] 开始获取 {ticker} 的实时报价")
     
     try:
+        import asyncio
+        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        info = tk.info
+        info = await loop.run_in_executor(None, lambda: tk.info)
 
         if not info or "currentPrice" not in info:
             logger.warning(f"[get_real_time_quote] 未找到 {ticker} 的实时报价数据")
@@ -62,7 +64,7 @@ def get_real_time_quote(ticker: str) -> dict:
 
 @tool
 @cached(key_prefix="ohlcv", ttl=3600)
-def get_historical_prices(
+async def get_historical_prices(
     ticker: str,
     period: Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max"] = "1mo",
     interval: Literal["1d", "1wk", "1mo"] = "1d",
@@ -78,8 +80,10 @@ def get_historical_prices(
     logger.info(f"[get_historical_prices] 开始获取 {ticker} 历史数据: period={period}, interval={interval}")
     
     try:
+        import asyncio
+        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        hist = tk.history(period=period, interval=interval)
+        hist = await loop.run_in_executor(None, lambda: tk.history(period=period, interval=interval))
 
         if hist.empty:
             logger.warning(f"[get_historical_prices] 未找到 {ticker} 的历史数据")

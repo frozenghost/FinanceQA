@@ -20,3 +20,11 @@ class AgentState(MessagesState):
     executed_tools: list[str] = []         # 已执行的工具列表
     validation_failed: bool = False        # 验证是否失败
     retry_count: int = 0                   # 重试次数
+    
+    # 错误处理和性能监控
+    error_count: int = 0                   # 工具执行错误计数
+    max_retries: int = 2                   # 最大重试次数
+    last_error: str | None = None          # 最后一个错误信息
+    failed_tools: list[str] = []           # 失败的工具列表
+    tool_execution_times: dict[str, float] = {}  # 工具执行时间统计
+

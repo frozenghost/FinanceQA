@@ -117,7 +117,7 @@ def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[tuple[int,
 
 
 @tool
-def search_knowledge_base(query: str, top_k: int = 5) -> dict:
+async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     """
     在金融知识库中搜索相关信息（混合检索：向量+BM25+重排序）。
     - query: 搜索问题，如 "什么是市盈率"、"ROE如何计算"
@@ -127,10 +127,15 @@ def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     如果知识库中没有相关内容，请明确告知用户，不要编造答案。
     """
     try:
+        import asyncio
+        loop = asyncio.get_event_loop()
         vectordb = _get_vectordb()
 
         # 1. Vector similarity search
-        vector_results_with_scores = vectordb.similarity_search_with_score(query, k=top_k * 3)
+        vector_results_with_scores = await loop.run_in_executor(
+            None,
+            lambda: vectordb.similarity_search_with_score(query, k=top_k * 3)
+        )
         vector_docs = [
             {
                 "page_content": doc.page_content, 
@@ -198,7 +203,7 @@ def search_knowledge_base(query: str, top_k: int = 5) -> dict:
 
 @tool
 @cached(key_prefix="web", ttl=900)
-def search_web(query: str, max_results: int = 5) -> dict:
+async def search_web(query: str, max_results: int = 5) -> dict:
     """
     使用 Tavily 搜索引擎进行实时网络搜索。
     - query: 搜索关键词
@@ -210,10 +215,17 @@ def search_web(query: str, max_results: int = 5) -> dict:
         return {"error": "Tavily API key 未配置，无法进行网络搜索"}
 
     try:
+        import asyncio
         from tavily import TavilyClient
 
+        loop = asyncio.get_event_loop()
         tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
-        response = tavily.search(query, max_results=max_results)
+        
+        # 添加超时控制
+        response = await asyncio.wait_for(
+            loop.run_in_executor(None, lambda: tavily.search(query, max_results=max_results)),
+            timeout=15.0
+        )
 
         results = []
         for r in response.get("results", []):
@@ -229,6 +241,7 @@ def search_web(query: str, max_results: int = 5) -> dict:
             "results": results,
             "data_source": "Tavily",
         }
+    
     except Exception as e:
         logger.error(f"Tavily 搜索失败: {e}")
         return {"error": f"网络搜索失败: {str(e)}"}

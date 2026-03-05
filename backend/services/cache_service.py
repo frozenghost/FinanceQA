@@ -4,6 +4,7 @@ When Redis is unavailable the decorator transparently falls through
 to the wrapped function so the main data path is never blocked.
 """
 
+import asyncio
 import functools
 import hashlib
 import json
@@ -34,42 +35,76 @@ except Exception:
 
 def cached(key_prefix: str, ttl: int):
     """
-    Universal cache decorator.
+    Universal cache decorator supporting both sync and async functions.
 
     - Redis available: cache hit → return cached; miss → compute + store.
     - Redis unavailable: pass-through, main path unaffected.
     """
 
     def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            if not REDIS_AVAILABLE or _r is None:
-                return func(*args, **kwargs)
+        is_async = asyncio.iscoroutinefunction(func)
+        
+        if is_async:
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs):
+                if not REDIS_AVAILABLE or _r is None:
+                    return await func(*args, **kwargs)
 
-            raw = json.dumps({"a": args, "k": kwargs}, sort_keys=True, default=str)
-            key = f"{key_prefix}:{hashlib.md5(raw.encode()).hexdigest()[:12]}"
+                raw = json.dumps({"a": args, "k": kwargs}, sort_keys=True, default=str)
+                key = f"{key_prefix}:{hashlib.md5(raw.encode()).hexdigest()[:12]}"
 
-            # Try read from cache
-            try:
-                if cached_val := _r.get(key):
-                    result = json.loads(cached_val)
-                    result["_cache"] = {"hit": True, "ttl": _r.ttl(key)}
-                    return result
-            except redis.RedisError as e:
-                logger.warning(f"Cache read error: {e}")
+                # Try read from cache
+                try:
+                    if cached_val := _r.get(key):
+                        result = json.loads(cached_val)
+                        result["_cache"] = {"hit": True, "ttl": _r.ttl(key)}
+                        return result
+                except redis.RedisError as e:
+                    logger.warning(f"Cache read error: {e}")
 
-            # Compute
-            result = func(*args, **kwargs)
+                # Compute
+                result = await func(*args, **kwargs)
 
-            # Try write to cache
-            try:
-                _r.setex(key, ttl, json.dumps(result, default=str))
-                result["_cache"] = {"hit": False}
-            except redis.RedisError as e:
-                logger.warning(f"Cache write error: {e}")
+                # Try write to cache
+                try:
+                    _r.setex(key, ttl, json.dumps(result, default=str))
+                    result["_cache"] = {"hit": False}
+                except redis.RedisError as e:
+                    logger.warning(f"Cache write error: {e}")
 
-            return result
+                return result
+            
+            return async_wrapper
+        else:
+            @functools.wraps(func)
+            def wrapper(*args, **kwargs):
+                if not REDIS_AVAILABLE or _r is None:
+                    return func(*args, **kwargs)
 
-        return wrapper
+                raw = json.dumps({"a": args, "k": kwargs}, sort_keys=True, default=str)
+                key = f"{key_prefix}:{hashlib.md5(raw.encode()).hexdigest()[:12]}"
+
+                # Try read from cache
+                try:
+                    if cached_val := _r.get(key):
+                        result = json.loads(cached_val)
+                        result["_cache"] = {"hit": True, "ttl": _r.ttl(key)}
+                        return result
+                except redis.RedisError as e:
+                    logger.warning(f"Cache read error: {e}")
+
+                # Compute
+                result = func(*args, **kwargs)
+
+                # Try write to cache
+                try:
+                    _r.setex(key, ttl, json.dumps(result, default=str))
+                    result["_cache"] = {"hit": False}
+                except redis.RedisError as e:
+                    logger.warning(f"Cache write error: {e}")
+
+                return result
+
+            return wrapper
 
     return decorator
