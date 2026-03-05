@@ -3,7 +3,8 @@
  * Uses native fetch + ReadableStream for streaming.
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { chatStorage } from "../services/chatStorage";
 
 export interface OHLCV {
   Date: string;
@@ -40,15 +41,52 @@ export interface Message {
   metadata?: MessageMetadata;
 }
 
-export function useSSEChat() {
+export function useSSEChat(conversationId?: string) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [currentConversationId, setCurrentConversationId] = useState<
+    string | null
+  >(conversationId || null);
   const abortRef = useRef<AbortController | null>(null);
+  const dbInitialized = useRef(false);
+
+  // 初始化数据库
+  useEffect(() => {
+    const init = async () => {
+      if (!dbInitialized.current) {
+        try {
+          await chatStorage.init();
+          dbInitialized.current = true;
+
+          // 如果有 conversationId，加载历史消息
+          if (conversationId) {
+            const msgs = await chatStorage.getMessages(conversationId);
+            setMessages(msgs);
+            setCurrentConversationId(conversationId);
+          }
+        } catch (error) {
+          console.error("Failed to initialize chat storage:", error);
+        }
+      }
+    };
+    init();
+  }, [conversationId]);
 
   const send = useCallback(
     async (input: string) => {
       setIsLoading(true);
       abortRef.current = new AbortController();
+
+      // 创建或使用现有对话
+      let convId = currentConversationId;
+      if (!convId && dbInitialized.current) {
+        try {
+          convId = await chatStorage.createConversation(input);
+          setCurrentConversationId(convId);
+        } catch (error) {
+          console.error("Failed to create conversation:", error);
+        }
+      }
 
       // Immediately append user message
       const userMsg: Message = {
@@ -66,6 +104,15 @@ export function useSSEChat() {
       };
 
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
+
+      // 保存用户消息
+      if (convId && dbInitialized.current) {
+        try {
+          await chatStorage.saveMessage(convId, userMsg);
+        } catch (error) {
+          console.error("Failed to save user message:", error);
+        }
+      }
 
       try {
         const res = await fetch("/api/query", {
@@ -88,6 +135,7 @@ export function useSSEChat() {
         const reader = res.body!.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
+        let finalAssistantMsg: Message = assistantMsg;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -106,44 +154,60 @@ export function useSSEChat() {
               if (data.type === "token") {
                 // Stream text token
                 setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? { ...m, content: m.content + data.token }
-                      : m
-                  )
+                  prev.map((m) => {
+                    if (m.id === assistantId) {
+                      finalAssistantMsg = {
+                        ...m,
+                        content: m.content + data.token,
+                      };
+                      return finalAssistantMsg;
+                    }
+                    return m;
+                  })
                 );
               } else if (data.type === "metadata") {
                 // Structured metadata (market data, steps, etc.)
                 setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? {
-                          ...m,
-                          metadata: {
-                            ...m.metadata,
-                            ...data.payload,
-                          } as MessageMetadata,
-                        }
-                      : m
-                  )
+                  prev.map((m) => {
+                    if (m.id === assistantId) {
+                      finalAssistantMsg = {
+                        ...m,
+                        metadata: {
+                          ...m.metadata,
+                          ...data.payload,
+                        } as MessageMetadata,
+                      };
+                      return finalAssistantMsg;
+                    }
+                    return m;
+                  })
                 );
               } else if (data.type === "error") {
                 setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === assistantId
-                      ? {
-                          ...m,
-                          content:
-                            m.content +
-                            `\n\n> 错误: ${data.message}`,
-                        }
-                      : m
-                  )
+                  prev.map((m) => {
+                    if (m.id === assistantId) {
+                      finalAssistantMsg = {
+                        ...m,
+                        content: m.content + `\n\n> 错误: ${data.message}`,
+                      };
+                      return finalAssistantMsg;
+                    }
+                    return m;
+                  })
                 );
               }
             } catch {
               // Skip malformed JSON lines
             }
+          }
+        }
+
+        // 保存完整的助手消息
+        if (convId && dbInitialized.current && finalAssistantMsg.content) {
+          try {
+            await chatStorage.saveMessage(convId, finalAssistantMsg);
+          } catch (error) {
+            console.error("Failed to save assistant message:", error);
           }
         }
       } catch (err) {
@@ -163,7 +227,7 @@ export function useSSEChat() {
         setIsLoading(false);
       }
     },
-    [messages]
+    [messages, currentConversationId]
   );
 
   const stop = useCallback(() => {
@@ -171,5 +235,17 @@ export function useSSEChat() {
     setIsLoading(false);
   }, []);
 
-  return { messages, isLoading, send, stop };
+  const clearMessages = useCallback(() => {
+    setMessages([]);
+    setCurrentConversationId(null);
+  }, []);
+
+  return {
+    messages,
+    isLoading,
+    send,
+    stop,
+    clearMessages,
+    conversationId: currentConversationId,
+  };
 }

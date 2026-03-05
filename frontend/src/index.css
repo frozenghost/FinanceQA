@@ -89,3 +89,52 @@ body {
 .animate-typing > span:nth-child(3) {
   animation-delay: 0.4s;
 }
+
+/* KaTeX 数学公式深色主题样式 */
+.katex {
+  color: #e2e8f0 !important;
+  font-size: 1.05em;
+}
+
+.katex .mord,
+.katex .mbin,
+.katex .mrel,
+.katex .mopen,
+.katex .mclose,
+.katex .mpunct {
+  color: #e2e8f0 !important;
+}
+
+.katex .mfrac > span {
+  border-color: #94a3b8 !important;
+}
+
+.katex .sqrt > .sqrt-line {
+  border-color: #94a3b8 !important;
+}
+
+.katex .vlist-t {
+  color: #e2e8f0 !important;
+}
+
+/* 行内公式 */
+.katex-display {
+  margin: 1em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* 公式滚动条 */
+.katex-display::-webkit-scrollbar {
+  height: 4px;
+}
+
+.katex-display::-webkit-scrollbar-track {
+  background: rgba(51, 65, 85, 0.3);
+  border-radius: 2px;
+}
+
+.katex-display::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 2px;
+}

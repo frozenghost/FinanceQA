@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, Link, useRouterState } from "@tanstack/react-router";
+import { createRootRoute, Outlet, Link, useNavigate } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MessageSquare, History, Plus, BarChart3, Settings } from "lucide-react";
 
@@ -12,6 +12,12 @@ const queryClient = new QueryClient({
 });
 
 function RootLayout() {
+  const navigate = useNavigate();
+
+  const handleNewChat = () => {
+    navigate({ to: "/" });
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="flex h-screen text-slate-100 font-sans overflow-hidden px-4 py-4">
@@ -25,13 +31,13 @@ function RootLayout() {
           </div>
 
           <div className="px-4 py-3">
-            <Link
-              to="/"
+            <button
+              onClick={handleNewChat}
               className="w-full flex items-center justify-center gap-2 bg-emerald-500 text-slate-950 hover:bg-emerald-400 hover:text-slate-950 px-4 py-2.5 rounded-2xl transition-all font-medium text-sm shadow-[0_16px_40px_rgba(16,185,129,0.7)] active:scale-[0.98]"
             >
               <Plus className="w-4 h-4" />
               开启新对话
-            </Link>
+            </button>
           </div>
 
           <nav className="flex-1 px-3 space-y-1.5 overflow-y-auto mt-1 pb-3">

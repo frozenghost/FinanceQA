@@ -1,4 +1,4 @@
-import { createRoute } from "@tanstack/react-router";
+import { createRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { Send, Square, Sparkles } from "lucide-react";
 import { rootRoute } from "./__root";
@@ -6,7 +6,8 @@ import { useSSEChat } from "../hooks/useSSEChat";
 import { MessageRenderer } from "../components/MessageRenderer";
 
 function ChatPage() {
-  const { messages, isLoading, send, stop } = useSSEChat();
+  const navigate = useNavigate();
+  const { messages, isLoading, send, stop, clearMessages } = useSSEChat();
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -30,6 +31,11 @@ function ChatPage() {
       e.preventDefault();
       handleSubmit(e);
     }
+  };
+
+  const handleNewChat = () => {
+    clearMessages();
+    navigate({ to: "/" });
   };
 
   return (
@@ -58,7 +64,10 @@ function ChatPage() {
                 ].map((q) => (
                   <button
                     key={q.title}
-                    onClick={() => send(q.desc)}
+                    onClick={() => {
+                      handleNewChat();
+                      send(q.desc);
+                    }}
                     className="flex flex-col text-left p-4 rounded-2xl border border-slate-700/80 bg-slate-900/70 backdrop-blur-2xl hover:border-emerald-400/80 hover:bg-slate-900/90 hover:shadow-[0_22px_60px_rgba(15,23,42,0.9)] transition-all duration-200 group"
                   >
                     <span className="font-semibold text-slate-100 group-hover:text-emerald-300 mb-1">
