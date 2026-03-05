@@ -4,12 +4,40 @@
 核心思想：
 1. 在模型回答前，先由协调器分析问题并规划工具调用
 2. 强制要求必须使用工具获取数据，禁止直接回答
-3. 跟踪工具执行情况，确保计划与实际执行一致
+3. 最后统计验证工具执行情况
 """
 
 from typing import Literal
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from services.llm_client import LLMClient
+
+logger = logging.getLogger(__name__)
+
+
+def get_time_context() -> str:
+    """生成当前时间上下文信息"""
+    utc_now = datetime.now(ZoneInfo("UTC"))
+    
+    timezones = {
+        "UTC": "UTC",
+        "US/Eastern": "America/New_York",
+        "Asia/Shanghai": "Asia/Shanghai",
+        "Asia/Hong_Kong": "Asia/Hong_Kong",
+    }
+    
+    time_info = "## 当前时间\n"
+    for display_name, tz_name in timezones.items():
+        try:
+            local_time = utc_now.astimezone(ZoneInfo(tz_name))
+            time_info += f"- {display_name}: {local_time.strftime('%Y-%m-%d %H:%M:%S %Z')}\n"
+        except Exception:
+            time_info += f"- {display_name}: {utc_now.strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+    
+    time_info += f"\n**重要**：用户询问\"最新\"、\"最近\"时，应基于上述实际时间，而非模型训练时间。\n"
+    return time_info
 
 
 # 协调器的系统提示
@@ -61,7 +89,6 @@ def coordinate_tools(state: dict) -> dict:
     - tool_plan: 工具调用计划列表
     - needs_tools: 是否需要工具
     - coordination_reasoning: 协调器的推理过程
-    - coordinator_raw_output: 原始输出（用于前端显示）
     """
     messages = state["messages"]
     last_user_message = next(
@@ -72,8 +99,12 @@ def coordinate_tools(state: dict) -> dict:
     # 调用 LLM 进行工具规划
     llm = LLMClient().get_langchain_model(role="coordinator")
     
+    # 添加时间上下文
+    time_context = get_time_context()
+    full_prompt = time_context + "\n\n" + COORDINATOR_PROMPT
+    
     coordination_messages = [
-        SystemMessage(content=COORDINATOR_PROMPT),
+        SystemMessage(content=full_prompt),
         HumanMessage(content=f"用户问题：{last_user_message}\n\n请规划工具调用策略。")
     ]
     
@@ -84,7 +115,6 @@ def coordinate_tools(state: dict) -> dict:
     try:
         # 提取 JSON（可能被包裹在 ```json ``` 中）
         content = response.content
-        raw_output = content  # 保存原始输出
         
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
@@ -93,24 +123,21 @@ def coordinate_tools(state: dict) -> dict:
         
         plan = json.loads(content)
         
+        tool_plan = plan.get("tool_plan", [])
+        logger.info(f"协调器规划: {len(tool_plan)} 个工具")
+        
         return {
-            "tool_plan": plan.get("tool_plan", []),
+            "tool_plan": tool_plan,
             "needs_tools": plan.get("needs_tools", True),
             "coordination_reasoning": plan.get("reasoning", ""),
-            "coordinator_raw_output": raw_output,
-            "executed_tools": [],  # 初始化已执行工具列表
-            "retry_count": 0,      # 初始化重试计数
         }
     except Exception as e:
         # 解析失败，默认需要工具
-        print(f"协调器输出解析失败: {e}")
+        logger.error(f"协调器输出解析失败: {e}")
         return {
             "tool_plan": [],
             "needs_tools": True,
             "coordination_reasoning": "协调器解析失败，将由 agent 自行判断",
-            "coordinator_raw_output": response.content if hasattr(response, 'content') else "",
-            "executed_tools": [],
-            "retry_count": 0,
         }
 
 
@@ -131,16 +158,9 @@ def should_use_tools(state: dict) -> Literal["use_tools", "direct_answer"]:
 def enforce_tool_usage(state: dict) -> dict:
     """
     强制工具使用节点：基于协调器的计划，强制要求 agent 使用工具
-    
-    这个节点会修改 system prompt，明确告知 agent 必须使用哪些工具
     """
     tool_plan = state.get("tool_plan", [])
     reasoning = state.get("coordination_reasoning", "")
-    executed_tools = state.get("executed_tools", [])
-    
-    # 计算还需要执行的工具
-    planned_tools = [t["tool"] for t in tool_plan]
-    remaining_tools = [t for t in tool_plan if t["tool"] not in executed_tools]
     
     if not tool_plan:
         # 没有具体计划，但仍需要工具，给出通用指导
@@ -159,33 +179,20 @@ def enforce_tool_usage(state: dict) -> dict:
 
 **禁止直接回答，必须先调用工具获取数据！**
 """
-    elif remaining_tools:
-        # 有未完成的工具，明确指示
+    else:
+        # 有具体计划，明确指示
         tool_list = "\n".join([
             f"- {t['tool']}({', '.join(f'{k}={v}' for k, v in t.get('params', {}).items())}) - {t.get('purpose', '')}"
-            for t in remaining_tools
+            for t in tool_plan
         ])
-        
-        executed_info = ""
-        if executed_tools:
-            executed_info = f"\n✓ 已执行: {', '.join(executed_tools)}"
         
         enforcement_msg = f"""
 ⚠️ 协调器分析：{reasoning}
 
-📋 工具调用计划（共 {len(planned_tools)} 个）：{executed_info}
-
-🔄 待执行的工具：
+📋 必须执行的工具调用计划（共 {len(tool_plan)} 个）：
 {tool_list}
 
-**请严格按照计划调用所有工具，不要跳过！调用完所有工具后再生成答案。**
-"""
-    else:
-        # 所有工具都已执行，可以生成答案
-        enforcement_msg = f"""
-✓ 所有计划的工具已执行完毕（共 {len(executed_tools)} 个）
-
-现在请基于工具返回的数据生成完整答案。
+**请严格按照计划调用所有工具，调用完成后再生成答案。**
 """
     
     # 将强制指令添加到消息中
@@ -193,78 +200,3 @@ def enforce_tool_usage(state: dict) -> dict:
     messages.append(SystemMessage(content=enforcement_msg))
     
     return {"messages": messages}
-
-
-def validate_tool_usage(state: dict) -> dict:
-    """
-    验证节点：检查 agent 是否按计划执行了所有工具
-    
-    对比 tool_plan 和 executed_tools，确保一致性
-    """
-    messages = state["messages"]
-    tool_plan = state.get("tool_plan", [])
-    executed_tools = state.get("executed_tools", [])
-    needs_tools = state.get("needs_tools", True)
-    retry_count = state.get("retry_count", 0)
-    
-    # 如果不需要工具，直接通过
-    if not needs_tools and not tool_plan:
-        return {"validation_failed": False}
-    
-    # 检查是否有工具调用
-    has_tool_calls = any(
-        isinstance(m, AIMessage) and hasattr(m, "tool_calls") and m.tool_calls
-        for m in messages[-10:]
-    )
-    
-    # 如果完全没有工具调用
-    if not has_tool_calls and (needs_tools or tool_plan):
-        if retry_count >= 2:
-            # 重试次数过多，放弃强制
-            warning_msg = SystemMessage(
-                content="⚠️ 多次尝试后仍未调用工具，将基于现有信息回答（可能不准确）"
-            )
-            messages.append(warning_msg)
-            return {"messages": messages, "validation_failed": False}
-        
-        warning_msg = SystemMessage(
-            content=f"❌ 检测到你没有使用工具就直接回答了！这违反了协调器的要求。\n\n请重新调用必要的工具获取数据。（重试 {retry_count + 1}/2）"
-        )
-        messages.append(warning_msg)
-        return {
-            "messages": messages,
-            "validation_failed": True,
-            "retry_count": retry_count + 1,
-        }
-    
-    # 如果有具体的工具计划，检查是否都执行了
-    if tool_plan:
-        planned_tools = set(t["tool"] for t in tool_plan)
-        executed_set = set(executed_tools)
-        missing_tools = planned_tools - executed_set
-        
-        if missing_tools and retry_count < 2:
-            missing_list = "\n".join([
-                f"- {t['tool']}({', '.join(f'{k}={v}' for k, v in t.get('params', {}).items())})"
-                for t in tool_plan if t["tool"] in missing_tools
-            ])
-            
-            warning_msg = SystemMessage(
-                content=f"""❌ 工具执行不完整！
-
-计划调用 {len(planned_tools)} 个工具，实际只调用了 {len(executed_set)} 个。
-
-缺失的工具：
-{missing_list}
-
-请补充调用这些工具。（重试 {retry_count + 1}/2）"""
-            )
-            messages.append(warning_msg)
-            return {
-                "messages": messages,
-                "validation_failed": True,
-                "retry_count": retry_count + 1,
-            }
-    
-    # 验证通过
-    return {"validation_failed": False}

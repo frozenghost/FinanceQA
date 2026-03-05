@@ -1,15 +1,23 @@
-import { createRoute } from "@tanstack/react-router";
+import { createRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { Send, Square, Sparkles } from "lucide-react";
 import { rootRoute } from "./__root";
 import { useSSEChat } from "../hooks/useSSEChat";
 import { MessageRenderer } from "../components/MessageRenderer";
+import { chatStorage } from "../services/chatStorage";
 
 function ConversationPage() {
   const { conversationId } = conversationRoute.useParams();
-  const { messages, isLoading, send, stop } = useSSEChat(conversationId);
+  const navigate = useNavigate();
+  const locationState = useRouterState({ select: (s) => s.location.state });
+  const hasInitialMessage = !!locationState?.initialMessage;
+  const { messages, isLoading, send, stop } = useSSEChat(conversationId, {
+    skipInitialLoad: hasInitialMessage,
+  });
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const initialMessageSent = useRef(false);
+  const prevLoadingRef = useRef(false);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -19,11 +27,55 @@ function ConversationPage() {
     scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const initialMessage = locationState?.initialMessage;
+    if (
+      initialMessage &&
+      conversationId &&
+      !initialMessageSent.current
+    ) {
+      initialMessageSent.current = true;
+      (async () => {
+        await chatStorage.init();
+        send(initialMessage);
+      })();
+    }
+  }, [conversationId, locationState?.initialMessage, send]);
+
+  useEffect(() => {
+    const wasLoading = prevLoadingRef.current;
+    prevLoadingRef.current = isLoading;
+    if (
+      initialMessageSent.current &&
+      locationState?.initialMessage &&
+      wasLoading &&
+      !isLoading
+    ) {
+      navigate({
+        to: "/chat/$conversationId",
+        params: { conversationId },
+        replace: true,
+        state: undefined,
+      });
+    }
+  }, [isLoading, conversationId, locationState?.initialMessage, navigate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
-    send(input.trim());
+    const text = input.trim();
     setInput("");
+    try {
+      await chatStorage.init();
+      const newId = await chatStorage.createConversation(text);
+      navigate({
+        to: "/chat/$conversationId",
+        params: { conversationId: newId },
+        state: { initialMessage: text },
+      });
+    } catch (err) {
+      console.error("Failed to create conversation:", err);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

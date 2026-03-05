@@ -52,7 +52,14 @@ export interface Message {
   metadata?: MessageMetadata;
 }
 
-export function useSSEChat(conversationId?: string) {
+export interface UseSSEChatOptions {
+  skipInitialLoad?: boolean;
+}
+
+export function useSSEChat(
+  conversationId?: string,
+  options?: UseSSEChatOptions
+) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<
@@ -60,28 +67,29 @@ export function useSSEChat(conversationId?: string) {
   >(conversationId || null);
   const abortRef = useRef<AbortController | null>(null);
   const dbInitialized = useRef(false);
+  const skipInitialLoad = options?.skipInitialLoad ?? false;
 
-  // 初始化数据库
   useEffect(() => {
     const init = async () => {
       if (!dbInitialized.current) {
         try {
           await chatStorage.init();
           dbInitialized.current = true;
-
-          // 如果有 conversationId，加载历史消息
-          if (conversationId) {
-            const msgs = await chatStorage.getMessages(conversationId);
-            setMessages(msgs);
-            setCurrentConversationId(conversationId);
-          }
         } catch (error) {
           console.error("Failed to initialize chat storage:", error);
+          return;
+        }
+      }
+      if (conversationId) {
+        setCurrentConversationId(conversationId);
+        if (!skipInitialLoad) {
+          const msgs = await chatStorage.getMessages(conversationId);
+          setMessages(msgs);
         }
       }
     };
     init();
-  }, [conversationId]);
+  }, [conversationId, skipInitialLoad]);
 
   const send = useCallback(
     async (input: string) => {

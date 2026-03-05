@@ -15,7 +15,7 @@ function RootLayout() {
   const navigate = useNavigate();
 
   const handleNewChat = () => {
-    navigate({ to: "/" });
+    navigate({ to: "/", search: { new: "1" } });
   };
 
   return (

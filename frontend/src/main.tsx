@@ -6,10 +6,12 @@ import "./index.css";
 
 const router = createRouter({ routeTree });
 
-// Type-safe router
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
+  }
+  interface HistoryState {
+    initialMessage?: string;
   }
 }
 

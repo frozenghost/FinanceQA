@@ -20,14 +20,17 @@ def get_company_fundamentals(ticker: str) -> dict:
     返回市盈率、市净率、ROE、利润率、EPS、营收等关键财务指标。
     适用于基本面分析、估值评估、财务健康度判断等场景。
     """
+    logger.info(f"[get_company_fundamentals] 开始获取 {ticker} 的基本面数据")
+    
     try:
         tk = yf.Ticker(ticker)
         info = tk.info
 
         if not info:
+            logger.warning(f"[get_company_fundamentals] 未找到 {ticker} 的基本面数据")
             return {"error": f"未找到 {ticker} 的基本面数据"}
 
-        return {
+        result = {
             "ticker": ticker,
             "company_name": info.get("longName", info.get("shortName")),
             "sector": info.get("sector"),
@@ -75,36 +78,13 @@ def get_company_fundamentals(ticker: str) -> dict:
             "data_source": "yfinance",
             "disclaimer": "数据来自公开财报，仅供参考",
         }
+        
+        logger.info(f"[get_company_fundamentals] 成功获取 {ticker} 基本面: PE={result['valuation']['pe_ratio']}, ROE={result['profitability']['roe']}")
+        return result
+        
     except Exception as e:
-        logger.error(f"获取基本面数据失败 {ticker}: {e}")
+        logger.error(f"[get_company_fundamentals] 获取基本面数据失败 {ticker}: {e}", exc_info=True)
         return {"error": f"获取基本面数据失败: {str(e)}"}
-
-
-def _row_value(df, index_contains: str):
-    for i, label in enumerate(df.index):
-        if index_contains.lower() in str(label).lower():
-            return df.index[i]
-    return None
-
-
-def _income_stmt_to_periods(stmt, max_periods: int):
-    if stmt is None or stmt.empty:
-        return []
-    revenue_row = _row_value(stmt, "total revenue") or _row_value(stmt, "revenue")
-    net_income_row = _row_value(stmt, "net income")
-    periods = []
-    for col in list(stmt.columns)[:max_periods]:
-        revenue = None
-        earnings = None
-        if revenue_row and revenue_row in stmt.index:
-            v = stmt.loc[revenue_row, col]
-            revenue = None if pd.isna(v) else float(v)
-        if net_income_row and net_income_row in stmt.index:
-            v = stmt.loc[net_income_row, col]
-            earnings = None if pd.isna(v) else float(v)
-        if revenue is not None or earnings is not None:
-            periods.append({"revenue": revenue, "earnings": earnings, "date": col})
-    return periods
 
 
 @tool
@@ -116,10 +96,14 @@ def get_earnings_history(ticker: str) -> dict:
     返回最近几个季度和年度的营收、净利润、EPS等财报数据。
     适用于财报分析、业绩趋势判断、同比环比对比等场景。
     """
+    logger.info(f"[get_earnings_history] 开始获取 {ticker} 的财报历史")
+    
     try:
         tk = yf.Ticker(ticker)
-        quarterly_stmt = tk.quarterly_income_stmt
-        annual_stmt = tk.income_stmt
+        
+        # 使用新的 API：income_stmt 和 quarterly_income_stmt
+        quarterly_income = tk.quarterly_income_stmt
+        annual_income = tk.income_stmt
 
         result = {
             "ticker": ticker,
@@ -128,28 +112,45 @@ def get_earnings_history(ticker: str) -> dict:
             "data_source": "yfinance",
         }
 
-        q_periods = _income_stmt_to_periods(quarterly_stmt, 8)
-        for p in q_periods:
-            date_val = p["date"]
-            result["quarterly"].append({
-                "date": date_val.strftime("%Y-%m-%d") if hasattr(date_val, "strftime") else str(date_val),
-                "revenue": p["revenue"],
-                "earnings": p["earnings"],
-            })
+        # 处理季度数据
+        if quarterly_income is not None and not quarterly_income.empty:
+            # income_stmt 的数据是列为日期，行为指标
+            for col in list(quarterly_income.columns)[:8]:  # 最近8个季度
+                date_str = col.strftime("%Y-%m-%d") if hasattr(col, "strftime") else str(col)
+                
+                # 从 income statement 中提取数据
+                revenue = quarterly_income.loc["Total Revenue", col] if "Total Revenue" in quarterly_income.index else None
+                net_income = quarterly_income.loc["Net Income", col] if "Net Income" in quarterly_income.index else None
+                
+                result["quarterly"].append({
+                    "date": date_str,
+                    "revenue": float(revenue) if revenue is not None and not pd.isna(revenue) else None,
+                    "earnings": float(net_income) if net_income is not None and not pd.isna(net_income) else None,
+                })
 
-        a_periods = _income_stmt_to_periods(annual_stmt, 5)
-        for p in a_periods:
-            date_val = p["date"]
-            result["annual"].append({
-                "year": str(date_val),
-                "revenue": p["revenue"],
-                "earnings": p["earnings"],
-            })
+        # 处理年度数据
+        if annual_income is not None and not annual_income.empty:
+            # income_stmt 的数据是列为日期，行为指标
+            for col in list(annual_income.columns)[:5]:  # 最近5年
+                date_str = col.strftime("%Y") if hasattr(col, "strftime") else str(col)
+                
+                # 从 income statement 中提取数据
+                revenue = annual_income.loc["Total Revenue", col] if "Total Revenue" in annual_income.index else None
+                net_income = annual_income.loc["Net Income", col] if "Net Income" in annual_income.index else None
+                
+                result["annual"].append({
+                    "year": date_str,
+                    "revenue": float(revenue) if revenue is not None and not pd.isna(revenue) else None,
+                    "earnings": float(net_income) if net_income is not None and not pd.isna(net_income) else None,
+                })
 
         if not result["quarterly"] and not result["annual"]:
+            logger.warning(f"[get_earnings_history] 未找到 {ticker} 的财报数据")
             return {"error": f"未找到 {ticker} 的财报数据"}
 
+        logger.info(f"[get_earnings_history] 成功获取 {ticker} 财报: {len(result['quarterly'])} 个季度, {len(result['annual'])} 个年度")
         return result
+        
     except Exception as e:
-        logger.error(f"获取财报数据失败 {ticker}: {e}")
+        logger.error(f"[get_earnings_history] 获取财报数据失败 {ticker}: {e}", exc_info=True)
         return {"error": f"获取财报数据失败: {str(e)}"}
