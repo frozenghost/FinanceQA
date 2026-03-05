@@ -223,7 +223,7 @@ async def calculate_technical_indicators(
             "signals": signals,
             "overall_signal": overall_signal,
             "signal_strength": signal_strength,
-            "data_source": "yfinance + pandas-ta",
+            "data_source": "市场数据服务",
             "disclaimer": "技术指标仅供参考，不构成投资建议",
         }
     

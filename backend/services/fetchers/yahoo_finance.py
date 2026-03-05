@@ -39,7 +39,7 @@ class YahooFinanceFetcher(BaseFetcher):
                 info = yf.Ticker(ticker).info
                 
                 # Build formatted text content
-                lines = [f"# {ticker} 财务摘要（来源：Yahoo Finance）"]
+                lines = [f"# {ticker} 财务摘要（来源：公开财报数据）"]
                 field_mapping = {
                     "trailingPE": "市盈率（P/E）",
                     "priceToBook": "市净率（P/B）",
@@ -60,9 +60,9 @@ class YahooFinanceFetcher(BaseFetcher):
                 doc = Document(
                     page_content=text,
                     metadata={
-                        "source": f"yfinance:{ticker}",
+                        "source": f"financial_data:{ticker}",
                         "type": "earnings",
-                        "fetcher": "YahooFinanceFetcher",
+                        "fetcher": "FinancialDataFetcher",
                         "ticker": ticker,
                         "company_name": info.get("longName", ticker)
                     }

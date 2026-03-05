@@ -23,9 +23,10 @@ import { PriceChart } from "./PriceChart";
 
 interface Props {
   message: Message;
+  isThinking?: boolean;
 }
 
-export function MessageRenderer({ message }: Props) {
+export function MessageRenderer({ message, isThinking }: Props) {
   const isUser = message.role === "user";
 
   return (
@@ -37,7 +38,7 @@ export function MessageRenderer({ message }: Props) {
     >
       {/* Avatar */}
       {!isUser && (
-        <div className="w-8 h-8 rounded-full bg-slate-950 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_12px_32px_rgba(16,185,129,0.6)] border border-emerald-400/70">
+        <div className="w-8 h-8 rounded-full bg-slate-950 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_12px_32px_rgba(16,185,129,0.62)] border border-emerald-400/70">
           <Bot className="w-5 h-5" />
         </div>
       )}
@@ -62,13 +63,44 @@ export function MessageRenderer({ message }: Props) {
 
         {/* Message content */}
         {message.content && (
-          <div className={clsx("prose prose-invert prose-sm max-w-none", message.metadata && "mt-3")}>
+          <div
+            className={clsx(
+              "prose prose-invert prose-sm max-w-none",
+              message.metadata && "mt-3"
+            )}
+          >
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath]}
               rehypePlugins={[rehypeKatex]}
             >
               {message.content}
             </ReactMarkdown>
+          </div>
+        )}
+
+        {/* Inline thinking indicator when assistant is generating */}
+        {!isUser && isThinking && (
+          <div className={clsx("mt-3", !message.content && !message.metadata && "mt-0")}>
+            {!message.content && (
+              <div className="text-xs text-slate-300 mb-1">正在思考</div>
+            )}
+            <div className="flex gap-1.5 items-center text-slate-400 text-xs">
+              <span
+                className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                style={{ animationDelay: "0ms" }}
+              ></span>
+              <span
+                className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                style={{ animationDelay: "150ms" }}
+              ></span>
+              <span
+                className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
+                style={{ animationDelay: "300ms" }}
+              ></span>
+              <span className="ml-1.5 font-medium text-xs text-slate-300">
+                正在生成回答...
+              </span>
+            </div>
           </div>
         )}
 
@@ -80,7 +112,7 @@ export function MessageRenderer({ message }: Props) {
 
       {/* User avatar */}
       {isUser && (
-        <div className="w-8 h-8 rounded-full bg-slate-950 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_12px_32px_rgba(16,185,129,0.6)] border border-emerald-400/70">
+        <div className="w-8 h-8 rounded-full bg-slate-950 text-emerald-300 flex items-center justify-center shrink-0 mt-0.5 shadow-[0_12px_32px_rgba(16,185,129,0.62)] border border-emerald-400/70">
           <User className="w-4 h-4" />
         </div>
       )}
@@ -120,28 +152,30 @@ function MarketCard({ metadata }: { metadata: MessageMetadata }) {
 
   const changeColor =
     (metadata.change_pct ?? 0) > 0
-      ? "text-green-600"
+      ? "text-emerald-400"
       : (metadata.change_pct ?? 0) < 0
-        ? "text-red-600"
-        : "text-slate-500";
+        ? "text-pink-300"
+        : "text-slate-400";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm w-full">
+    <div className="bg-slate-950/85 border border-emerald-500/30 rounded-2xl p-4 shadow-[0_18px_45px_rgba(15,23,42,0.95)] w-full">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="font-mono font-semibold text-slate-800 text-base">{metadata.ticker}</span>
+          <span className="font-mono font-semibold text-slate-50 text-base tracking-tight">
+            {metadata.ticker}
+          </span>
           {trendIcon}
         </div>
-        <span className="text-xl font-bold text-slate-800">
+        <span className="text-xl font-bold text-emerald-300">
           ${metadata.current?.toFixed(2)}
         </span>
       </div>
-      <div className="flex items-center gap-1.5 bg-slate-50 w-fit px-2 py-1 rounded-md">
+      <div className="flex items-center gap-1.5 bg-slate-900/80 w-fit px-2 py-1 rounded-md border border-slate-700/80">
         <span className={clsx("text-sm font-medium", changeColor)}>
           {(metadata.change_pct ?? 0) > 0 ? "+" : ""}
           {metadata.change_pct?.toFixed(2)}%
         </span>
-        <span className="text-xs text-slate-500 font-medium">{metadata.trend}</span>
+        <span className="text-xs text-slate-400 font-medium">{metadata.trend}</span>
       </div>
 
       {/* Price chart */}
@@ -235,7 +269,9 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
                     : "bg-amber-400 animate-pulse"
                 )}
               />
-              <span className="font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded text-[11px] font-semibold">{step.tool}</span>
+              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded border border-pink-500/40 text-pink-300 bg-pink-500/10">
+                {step.tool}
+              </span>
               <span className="text-slate-300 truncate">
                 {JSON.stringify(step.input).slice(0, 60)}
                 {JSON.stringify(step.input).length > 60 ? "..." : ""}
@@ -270,28 +306,28 @@ function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordi
   }
 
   return (
-    <div className="border border-purple-500/30 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(168,85,247,0.15)] bg-gradient-to-br from-purple-950/40 to-slate-950/40 backdrop-blur-2xl">
+    <div className="border border-pink-500/30 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(236,72,153,0.16)] bg-gradient-to-br from-pink-950/40 to-slate-950/40 backdrop-blur-2xl">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-2.5 bg-purple-900/20 hover:bg-purple-800/30 text-xs text-purple-200 font-medium transition-colors border-b border-transparent data-[state=open]:border-purple-500/30"
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-pink-900/20 hover:bg-pink-800/30 text-xs text-pink-100 font-medium transition-colors border-b border-transparent data-[state=open]:border-pink-500/30"
         data-state={open ? "open" : "closed"}
       >
         <span className="flex items-center gap-2">
-          <span className="text-purple-400">🧠</span>
+          <span className="text-pink-300">🧠</span>
           <span>协调器思考过程</span>
           {!isComplete && (
-            <span className="text-[10px] text-purple-400/80 animate-pulse">思考中…</span>
+            <span className="text-[10px] text-pink-300/80 animate-pulse">思考中…</span>
           )}
         </span>
         {open ? (
-          <ChevronDown className="w-4 h-4 text-purple-400" />
+          <ChevronDown className="w-4 h-4 text-pink-300" />
         ) : (
-          <ChevronRight className="w-4 h-4 text-purple-400" />
+          <ChevronRight className="w-4 h-4 text-pink-300" />
         )}
       </button>
       {open && (
         <div className="px-4 py-3 bg-slate-950/50">
-          <div className="prose prose-invert prose-sm max-w-none prose-headings:text-purple-300 prose-headings:text-xs prose-headings:font-semibold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mb-2 prose-p:text-slate-200 prose-p:text-xs prose-p:leading-relaxed prose-ul:text-slate-200 prose-ul:text-xs prose-li:my-1 prose-strong:text-emerald-400 prose-strong:font-semibold">
+          <div className="prose prose-invert prose-sm max-w-none prose-headings:text-pink-200 prose-headings:text-xs prose-headings:font-semibold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mb-2 prose-p:text-slate-200 prose-p:text-xs prose-p:leading-relaxed prose-ul:text-slate-200 prose-ul:text-xs prose-li:my-1 prose-strong:text-emerald-400 prose-strong:font-semibold">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
             >

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     APP_URL: str = "http://localhost:5173"
 
     # ── 数据 API ──────────────────────────────────────────────
-    NEWSAPI_KEY: str = ""
+    SERPAPI_KEY: str = ""
     TAVILY_API_KEY: str = ""
 
     # ── Reranker（BGE-reranker-v2-m3 ONNX 本地推理）────────

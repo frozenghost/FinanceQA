@@ -1,9 +1,10 @@
 """News and sentiment skill — financial news and market sentiment analysis."""
 
 import logging
+from typing import Optional
 
+import httpx
 from langchain_core.tools import tool
-from newsapi import NewsApiClient
 
 from config.settings import settings
 from services.cache_service import cached
@@ -21,40 +22,46 @@ async def get_financial_news(query: str, page_size: int = 5) -> dict:
     返回新闻标题、来源、发布时间、摘要和链接。
     适用于了解最新市场动态、公司新闻、行业事件等场景。
     """
-    if not settings.NEWSAPI_KEY:
-        return {"error": "NewsAPI key 未配置，无法获取新闻"}
+    if not settings.SERPAPI_KEY:
+        return {"error": "SerpAPI key 未配置，无法获取新闻"}
 
     try:
-        import asyncio
-        loop = asyncio.get_event_loop()
-        newsapi = NewsApiClient(api_key=settings.NEWSAPI_KEY)
-        response = await loop.run_in_executor(
-            None,
-            lambda: newsapi.get_everything(
-                q=query,
-                language="en",
-                sort_by="publishedAt",
-                page_size=page_size,
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            params = {
+                "engine": "google_news",
+                "q": query,
+                "api_key": settings.SERPAPI_KEY,
+                "num": page_size,
+                "gl": "us",
+                "hl": "en",
+            }
+            
+            response = await client.get(
+                "https://serpapi.com/search",
+                params=params
             )
-        )
+            response.raise_for_status()
+            data = response.json()
 
         articles = []
-        for article in response.get("articles", []):
+        news_results = data.get("news_results", [])
+        
+        for item in news_results[:page_size]:
             articles.append({
-                "title": article.get("title", ""),
-                "source": article.get("source", {}).get("name", ""),
-                "published_at": article.get("publishedAt", ""),
-                "description": article.get("description", ""),
-                "url": article.get("url", ""),
+                "title": item.get("title", ""),
+                "source": item.get("source", {}).get("name", "") if isinstance(item.get("source"), dict) else item.get("source", ""),
+                "published_at": item.get("date", ""),
+                "description": item.get("snippet", ""),
+                "url": item.get("link", ""),
             })
 
         return {
             "query": query,
-            "total_results": response.get("totalResults", 0),
+            "total_results": len(news_results),
             "articles": articles,
-            "data_source": "NewsAPI",
+            "data_source": "SerpAPI Google News",
         }
     
     except Exception as e:
-        logger.error(f"NewsAPI 请求失败: {e}")
+        logger.error(f"SerpAPI 请求失败: {e}")
         return {"error": f"新闻获取失败: {str(e)}"}

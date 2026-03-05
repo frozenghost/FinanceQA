@@ -1,13 +1,22 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+:root {
+  --color-bg: #020617;
+  --color-primary: #10b981; /* emerald */
+  --color-primary-soft: #22c55e;
+  --color-secondary: #f9a8d4; /* soft pink */
+  --color-secondary-soft: #fbcfe8;
+}
 
 body {
   margin: 0;
   min-height: 100vh;
   color: #e2e8f0;
   background:
-    radial-gradient(circle at 0% 0%, rgba(34, 197, 94, 0.14), transparent 55%),
-    radial-gradient(circle at 100% 100%, rgba(16, 185, 129, 0.18), transparent 55%),
-    linear-gradient(135deg, #020617 0%, #020617 40%, #020617 100%);
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--color-primary-soft) 28%, transparent), transparent 55%),
+    radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--color-secondary) 26%, transparent), transparent 55%),
+    linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg) 40%, var(--color-bg) 100%);
   background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
@@ -50,6 +59,23 @@ body {
   padding: 0.125rem 0.35rem;
   border-radius: 0.35rem;
   font-size: 0.875rem;
+}
+
+.prose a,
+.prose.prose-invert a {
+  color: var(--color-secondary);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  font-weight: 500;
+}
+
+.prose a:hover,
+.prose.prose-invert a:hover {
+  color: var(--color-primary-soft);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+  text-decoration-color: color-mix(in srgb, var(--color-primary-soft) 60%, var(--color-secondary) 40%);
 }
 
 .prose table {

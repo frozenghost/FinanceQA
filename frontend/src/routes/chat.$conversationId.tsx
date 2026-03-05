@@ -96,35 +96,18 @@ function ConversationPage() {
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="max-w-3xl mx-auto space-y-8">
-          {messages.map((m) => (
-            <MessageRenderer key={m.id} message={m} />
-          ))}
-          {isLoading && (
-            <div className="flex items-start gap-4 animate-in fade-in duration-300">
-              <div className="w-8 h-8 rounded-full bg-slate-950 flex items-center justify-center shrink-0 mt-1 shadow-[0_12px_32px_rgba(16,185,129,0.6)] ring-2 ring-emerald-400/80">
-                <Sparkles className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div className="flex items-center h-10 gap-2 text-slate-400 text-sm">
-                <div className="flex gap-1.5 items-center bg-slate-900/80 px-4 py-2.5 rounded-full border border-slate-700/80 shadow-[0_18px_45px_rgba(15,23,42,0.9)] backdrop-blur-2xl">
-                  <span
-                    className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "0ms" }}
-                  ></span>
-                  <span
-                    className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "150ms" }}
-                  ></span>
-                  <span
-                    className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-bounce"
-                    style={{ animationDelay: "300ms" }}
-                  ></span>
-                  <span className="ml-1.5 font-medium text-xs text-slate-300">
-                    正在思考...
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
+          {messages.map((m, index) => {
+            const isLast = index === messages.length - 1;
+            const isLastAssistant = isLast && m.role === "assistant";
+
+            return (
+              <MessageRenderer
+                key={m.id}
+                message={m}
+                isThinking={isLoading && isLastAssistant}
+              />
+            );
+          })}
           <div ref={messagesEndRef} className="h-4" />
         </div>
       </div>

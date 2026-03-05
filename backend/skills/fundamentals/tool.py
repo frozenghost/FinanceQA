@@ -77,7 +77,7 @@ async def get_company_fundamentals(ticker: str) -> dict:
                 "dividend_yield": info.get("dividendYield"),
                 "payout_ratio": info.get("payoutRatio"),
             },
-            "data_source": "yfinance",
+            "data_source": "财务数据服务",
             "disclaimer": "数据来自公开财报，仅供参考",
         }
         
@@ -115,7 +115,7 @@ async def get_earnings_history(ticker: str) -> dict:
             "ticker": ticker,
             "quarterly": [],
             "annual": [],
-            "data_source": "yfinance",
+            "data_source": "财务数据服务",
         }
 
         # 处理季度数据

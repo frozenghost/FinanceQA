@@ -50,7 +50,7 @@ async def get_real_time_quote(ticker: str) -> dict:
             "52_week_low": info.get("fiftyTwoWeekLow"),
             "currency": info.get("currency", "USD"),
             "exchange": info.get("exchange"),
-            "data_source": "yfinance",
+            "data_source": "市场数据服务",
             "delay_note": "数据约有 15 分钟延迟",
         }
         
@@ -141,7 +141,7 @@ async def get_historical_prices(
             "period_high": round(float(hist["High"].max()), 2),
             "period_low": round(float(hist["Low"].min()), 2),
             "ohlcv": ohlcv,
-            "data_source": "yfinance",
+            "data_source": "市场数据服务",
         }
         
         logger.info(f"[get_historical_prices] 成功获取 {ticker} 历史数据: {len(ohlcv)} 个数据点, 区间收益 {period_return:+.2f}%")

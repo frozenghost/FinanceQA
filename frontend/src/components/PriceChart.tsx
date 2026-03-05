@@ -43,22 +43,24 @@ export function PriceChart({ data, ticker }: Props) {
 
   return (
     <div className="w-full">
-      <div className="text-xs text-slate-500 mb-2 font-medium bg-slate-50 px-2 py-1 rounded-md w-fit border border-slate-100">{ticker} 走势图</div>
+      <div className="text-xs text-emerald-300 mb-2 font-medium bg-slate-950/80 px-2 py-1 rounded-md w-fit border border-emerald-500/40 shadow-[0_10px_28px_rgba(15,23,42,0.9)]">
+        {ticker} 走势图
+      </div>
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 10, fill: "#94a3b8" }}
-            stroke="#f1f5f9"
+            tick={{ fontSize: 10, fill: "#64748b" }}
+            stroke="#1e293b"
             tickLine={false}
             axisLine={false}
             dy={10}
           />
           <YAxis
             domain={[minPrice - padding, maxPrice + padding]}
-            tick={{ fontSize: 10, fill: "#94a3b8" }}
-            stroke="#f1f5f9"
+            tick={{ fontSize: 10, fill: "#64748b" }}
+            stroke="#1e293b"
             tickLine={false}
             axisLine={false}
             width={45}
@@ -67,23 +69,29 @@ export function PriceChart({ data, ticker }: Props) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "#ffffff",
-              border: "1px solid #e2e8f0",
+              backgroundColor: "#020617",
+              border: "1px solid #1f2937",
               borderRadius: "0.5rem",
               fontSize: "12px",
-              color: "#334155",
-              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)"
+              color: "#e5e7eb",
+              boxShadow:
+                "0 18px 45px rgba(15,23,42,0.95)"
             }}
-            labelStyle={{ color: "#64748b", fontWeight: 500, marginBottom: "4px" }}
+            labelStyle={{ color: "#9ca3af", fontWeight: 500, marginBottom: "4px" }}
             formatter={(value: number) => [`$${value.toFixed(2)}`, "收盘价"]}
           />
           <Line
             type="monotone"
             dataKey="close"
-            stroke="#3b82f6"
+            stroke="#22c55e"
             strokeWidth={2.5}
             dot={false}
-            activeDot={{ r: 4, stroke: "#3b82f6", strokeWidth: 2, fill: "#ffffff" }}
+            activeDot={{
+              r: 4,
+              stroke: "#22c55e",
+              strokeWidth: 2,
+              fill: "#020617",
+            }}
           />
         </LineChart>
       </ResponsiveContainer>

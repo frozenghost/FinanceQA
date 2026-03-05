@@ -67,7 +67,7 @@ function HistoryPage() {
           {conversations.length > 0 && (
             <button
               onClick={() => setShowConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-rose-400 bg-slate-900/70 border border-rose-500/30 hover:bg-rose-500/10 hover:border-rose-500/50 rounded-xl transition-all font-medium shadow-lg"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-pink-300 bg-slate-900/70 border border-pink-500/40 hover:bg-pink-500/10 hover:border-pink-500/60 rounded-xl transition-all font-medium shadow-lg"
             >
               <Trash2 className="w-4 h-4" />
               清空记录
@@ -126,7 +126,7 @@ function HistoryPage() {
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={(e) => handleDelete(e, conv.id)}
-                    className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                    className="p-2 text-slate-500 hover:text-pink-300 hover:bg-pink-500/10 rounded-lg transition-colors"
                     title="删除"
                   >
                     <Trash2 className="w-4 h-4" />

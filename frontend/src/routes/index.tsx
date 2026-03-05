@@ -83,7 +83,7 @@ function WelcomePage() {
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="max-w-3xl mx-auto">
           <div className="flex flex-col items-center justify-center min-h-[60vh] animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-[0_22px_55px_rgba(16,185,129,0.7)] border border-emerald-400/70 bg-slate-950">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-[0_22px_55px_rgba(16,185,129,0.75)] border border-emerald-400/70 bg-slate-950">
               <span className="text-2xl">💬</span>
             </div>
             <h1 className="text-2xl font-semibold text-slate-50 mb-3 tracking-tight">

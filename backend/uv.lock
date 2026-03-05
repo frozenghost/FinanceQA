@@ -577,6 +577,7 @@ dependencies = [
     { name = "aiosqlite" },
     { name = "apscheduler" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "jieba" },
     { name = "json-repair" },
     { name = "langchain-chroma" },
@@ -584,7 +585,6 @@ dependencies = [
     { name = "langchain-core" },
     { name = "langchain-openai" },
     { name = "langgraph" },
-    { name = "newsapi-python" },
     { name = "numpy" },
     { name = "onnxruntime" },
     { name = "openai" },
@@ -608,7 +608,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
     { name = "mypy" },
     { name = "optimum" },
     { name = "pytest" },
@@ -622,6 +621,7 @@ requires-dist = [
     { name = "aiosqlite", specifier = ">=0.20" },
     { name = "apscheduler", specifier = ">=3.10" },
     { name = "fastapi", specifier = ">=0.115" },
+    { name = "httpx", specifier = ">=0.27" },
     { name = "jieba", specifier = ">=0.42" },
     { name = "json-repair", specifier = ">=0.58.3" },
     { name = "langchain-chroma", specifier = ">=0.1" },
@@ -629,7 +629,6 @@ requires-dist = [
     { name = "langchain-core", specifier = ">=0.3" },
     { name = "langchain-openai", specifier = ">=0.2" },
     { name = "langgraph", specifier = ">=0.2" },
-    { name = "newsapi-python", specifier = ">=0.2" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "onnxruntime", specifier = ">=1.17" },
     { name = "openai", specifier = ">=1.50" },
@@ -652,7 +651,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.27" },
     { name = "mypy", specifier = ">=1.12" },
     { name = "optimum", specifier = ">=1.19" },
     { name = "pytest", specifier = ">=8.0" },
@@ -1909,18 +1907,6 @@ source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
 sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/6a/51/63fe664f3908c97be9d2e4f1158eb633317598cfa6e1fc14af5383f17512/networkx-3.6.1.tar.gz", hash = "sha256:26b7c357accc0c8cde558ad486283728b65b6a95d85ee1cd66bafab4c8168509", size = 2517025, upload-time = "2025-12-08T17:02:39.908Z" }
 wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl", hash = "sha256:d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762", size = 2068504, upload-time = "2025-12-08T17:02:38.159Z" },
-]
-
-[[package]]
-name = "newsapi-python"
-version = "0.2.7"
-source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
-dependencies = [
-    { name = "requests" },
-]
-sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/f8/4b/12fb9495211fc5a6d3a96968759c1a48444124a1654aaf65d0de80b46794/newsapi-python-0.2.7.tar.gz", hash = "sha256:a4b66d5dd9892198cdaa476f7542f2625cdd218e5e3121c8f880b2ace717a3c2", size = 7485, upload-time = "2023-03-02T13:15:35.89Z" }
-wheels = [
-    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/74/47/e3b099102f0c826d37841d2266e19f1568dcf58ba86e4c6948e2a124f91d/newsapi_python-0.2.7-py2.py3-none-any.whl", hash = "sha256:11d34013a24d92ca7b7cbdac84ed2d504862b1e22467bc2a9a6913a70962318e", size = 7942, upload-time = "2023-03-02T13:15:34.475Z" },
 ]
 
 [[package]]
