@@ -1,17 +1,22 @@
-"""Load and merge system prompt with skill-specific prompt.txt files."""
+"""Load and merge system prompt with skill-specific prompt.md files."""
 
 from pathlib import Path
 
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
+PROMPTS_DIR = Path(__file__).parent
 
 
-def load_system_prompt() -> str:
+def load_system_prompt(strict: bool = False) -> str:
     """
     Build the full system prompt by combining:
-    1. Base ReAct agent prompt (react_agent.txt)
-    2. Each skill's prompt.txt (if present)
+    1. Base ReAct agent prompt (react_agent.md or react_agent_strict.md)
+    2. Each skill's prompt.md (if present)
+
+    Args:
+        strict: If True, use react_agent_strict.md (enforce tool use, no hallucination).
     """
-    base_path = Path(__file__).parent / "react_agent.txt"
+    prompt_file = "react_agent_strict.md" if strict else "react_agent.md"
+    base_path = PROMPTS_DIR / prompt_file
     base = base_path.read_text(encoding="utf-8")
 
     skill_prompts: list[str] = []

@@ -41,22 +41,37 @@ async def query_agent(req: QueryRequest):
         messages.append(HumanMessage(content=req.message))
 
         try:
-            # Stream the agent execution
-            collected_content = ""
             tool_calls_info = []
+            coordinator_sent = False
 
             async for event in agent.astream_events(
                 {"messages": messages},
                 version="v2",
             ):
                 kind = event["event"]
+                
+                # 捕获协调器节点的输出
+                if kind == "on_chain_end" and not coordinator_sent:
+                    metadata = event.get("metadata", {})
+                    langgraph_node = metadata.get("langgraph_node", "")
+                    
+                    if langgraph_node == "coordinator":
+                        output = event["data"].get("output", {})
+                        if output and isinstance(output, dict):
+                            coordinator_data = {
+                                "reasoning": output.get("coordination_reasoning", ""),
+                                "tool_plan": output.get("tool_plan", []),
+                                "needs_tools": output.get("needs_tools", False),
+                            }
+                            if coordinator_data["reasoning"] or coordinator_data["tool_plan"]:
+                                yield f"data: {json.dumps({'type': 'coordinator', 'data': coordinator_data}, default=str)}\n\n"
+                                coordinator_sent = True
 
                 if kind == "on_chat_model_stream":
                     # Streaming tokens from the LLM
                     chunk = event["data"]["chunk"]
                     if isinstance(chunk, AIMessageChunk) and chunk.content:
                         token = chunk.content
-                        collected_content += token
                         yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
 
                 elif kind == "on_tool_start":

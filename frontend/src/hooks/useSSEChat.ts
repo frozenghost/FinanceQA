@@ -22,6 +22,16 @@ export interface AgentStep {
   status: "running" | "completed";
 }
 
+export interface CoordinatorData {
+  reasoning: string;
+  tool_plan: Array<{
+    tool: string;
+    params: Record<string, unknown>;
+    purpose: string;
+  }>;
+  needs_tools: boolean;
+}
+
 export interface MessageMetadata {
   type: "market" | "technical" | "rag" | "hybrid";
   ticker?: string;
@@ -32,6 +42,7 @@ export interface MessageMetadata {
   indicators?: Record<string, number | null>;
   signals?: string[];
   steps?: AgentStep[];
+  coordinator?: CoordinatorData;
 }
 
 export interface Message {
@@ -159,6 +170,23 @@ export function useSSEChat(conversationId?: string) {
                       finalAssistantMsg = {
                         ...m,
                         content: m.content + data.token,
+                      };
+                      return finalAssistantMsg;
+                    }
+                    return m;
+                  })
+                );
+              } else if (data.type === "coordinator") {
+                // Coordinator thinking process
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id === assistantId) {
+                      finalAssistantMsg = {
+                        ...m,
+                        metadata: {
+                          ...m.metadata,
+                          coordinator: data.data,
+                        } as MessageMetadata,
                       };
                       return finalAssistantMsg;
                     }

@@ -37,6 +37,14 @@ from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
+PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+
+
+def _load_prompt(name: str) -> str:
+    path = PROMPTS_DIR / name
+    return path.read_text(encoding="utf-8").strip()
+
+
 # ── Evaluation dimensions and their weights ────────────────────
 DIMENSIONS = {
     "accuracy": {"weight": 0.30, "description": "事实准确性，数据是否正确"},
@@ -45,31 +53,6 @@ DIMENSIONS = {
     "reasoning": {"weight": 0.15, "description": "分析推理的逻辑性与深度"},
     "language_quality": {"weight": 0.10, "description": "语言表达的流畅性、专业性与可读性"},
 }
-
-JUDGE_SYSTEM_PROMPT = """你是一个专业的金融问答系统质量评估员。你的任务是对 AI 模型的回答进行客观、严格的评分。
-
-评分维度和标准（每个维度 1-10 分）：
-
-1. **accuracy（准确性）**：回答中的事实、数据、概念是否准确。如果包含明显错误扣分。
-2. **completeness（完整性）**：是否全面覆盖了问题涉及的关键知识点。遗漏重要信息扣分。
-3. **relevance（相关性）**：回答是否紧扣问题主题。偏离主题或包含大量无关信息扣分。
-4. **reasoning（推理质量）**：分析和推理是否有逻辑、有深度。浅尝辄止或逻辑混乱扣分。
-5. **language_quality（语言质量）**：表达是否清晰、专业、易读。语法错误或表述混乱扣分。
-
-你必须严格按照以下 JSON 格式输出评分结果，不要包含任何其他内容：
-
-{
-  "scores": {
-    "accuracy": <1-10>,
-    "completeness": <1-10>,
-    "relevance": <1-10>,
-    "reasoning": <1-10>,
-    "language_quality": <1-10>
-  },
-  "strengths": "<回答的优点，1-2句话>",
-  "weaknesses": "<回答的不足，1-2句话>",
-  "overall_comment": "<总体评价，1-2句话>"
-}"""
 
 
 class ModelEvaluator:
@@ -100,13 +83,7 @@ class ModelEvaluator:
             response = await self.client.chat.completions.create(
                 model=model,
                 messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "你是一个专业的金融分析助手。请用中文回答问题，"
-                            "确保回答准确、完整、有条理。如果涉及具体数据，请说明数据来源。"
-                        ),
-                    },
+                    {"role": "system", "content": _load_prompt("eval_qa_system.md")},
                     {"role": "user", "content": question},
                 ],
                 temperature=0.3,
@@ -140,7 +117,7 @@ class ModelEvaluator:
             response = await self.client.chat.completions.create(
                 model=settings.EVAL_JUDGE_MODEL,
                 messages=[
-                    {"role": "system", "content": JUDGE_SYSTEM_PROMPT},
+                    {"role": "system", "content": _load_prompt("eval_judge_system.md")},
                     {"role": "user", "content": judge_prompt},
                 ],
                 temperature=0.1,

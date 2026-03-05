@@ -64,5 +64,8 @@ class Settings(BaseSettings):
     # ── 模型覆盖（可选，一行切换所有模型）───────────────────
     OVERRIDE_ALL_MODELS: str = ""
 
+    # ── Agent 模式配置 ────────────────────────────────────────
+    USE_COORDINATOR: bool = True  # 是否使用协调器模式（强制工具使用，减少幻觉）
+
 
 settings = Settings()

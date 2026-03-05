@@ -42,7 +42,7 @@ class TestPromptLoader:
         from prompts.loader import load_system_prompt
 
         prompt = load_system_prompt()
-        # Should contain skill names from prompt.txt files
+        # Should contain skill names from prompt.md files
         assert "market_data" in prompt
         assert "rag_search" in prompt
 

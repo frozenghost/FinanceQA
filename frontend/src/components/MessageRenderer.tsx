@@ -79,6 +79,11 @@ export function MessageRenderer({ message }: Props) {
 function MetadataCards({ metadata }: { metadata: MessageMetadata }) {
   return (
     <div className="mt-3 space-y-3">
+      {/* Coordinator thinking process */}
+      {metadata.coordinator && (
+        <CoordinatorFold coordinator={metadata.coordinator} />
+      )}
+
       {/* Market data card */}
       {metadata.type === "market" && metadata.ticker && (
         <MarketCard metadata={metadata} />
@@ -215,6 +220,79 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordinator"] }) {
+  const [open, setOpen] = useState(false);
+
+  if (!coordinator) return null;
+
+  return (
+    <div className="border border-purple-500/30 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(168,85,247,0.15)] bg-gradient-to-br from-purple-950/40 to-slate-950/40 backdrop-blur-2xl">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-purple-900/20 hover:bg-purple-800/30 text-xs text-purple-200 font-medium transition-colors border-b border-transparent data-[state=open]:border-purple-500/30"
+        data-state={open ? "open" : "closed"}
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-purple-400">🧠</span>
+          <span>协调器思考过程</span>
+        </span>
+        {open ? (
+          <ChevronDown className="w-4 h-4 text-purple-400" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-purple-400" />
+        )}
+      </button>
+      {open && (
+        <div className="px-4 py-3 space-y-3 bg-slate-950/50">
+          {/* Reasoning */}
+          {coordinator.reasoning && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
+                分析
+              </div>
+              <div className="text-xs text-slate-200 leading-relaxed bg-slate-900/50 rounded-lg p-2.5 border border-slate-700/50">
+                {coordinator.reasoning}
+              </div>
+            </div>
+          )}
+
+          {/* Tool Plan */}
+          {coordinator.tool_plan && coordinator.tool_plan.length > 0 && (
+            <div className="space-y-1.5">
+              <div className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
+                工具调用计划
+              </div>
+              <div className="space-y-2">
+                {coordinator.tool_plan.map((plan, i) => (
+                  <div
+                    key={i}
+                    className="bg-slate-900/50 rounded-lg p-2.5 border border-slate-700/50 space-y-1"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-emerald-400 text-xs font-semibold">
+                        {plan.tool}
+                      </span>
+                      <span className="text-slate-500 text-xs">→</span>
+                      <span className="text-slate-300 text-xs flex-1">
+                        {plan.purpose}
+                      </span>
+                    </div>
+                    {plan.params && Object.keys(plan.params).length > 0 && (
+                      <div className="text-[11px] text-slate-400 font-mono bg-slate-950/50 rounded px-2 py-1">
+                        {JSON.stringify(plan.params)}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
