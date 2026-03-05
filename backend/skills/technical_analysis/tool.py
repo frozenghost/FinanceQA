@@ -20,7 +20,7 @@ async def calculate_technical_indicators(
     interval: str = "1d"
 ) -> dict:
     """
-    Calculate technical indicators for a stock: moving averages, RSI, MACD, Bollinger Bands, etc.
+    Calculate technical indicators for a stock: moving averages, RSI, MACD, Stochastic, ATR, etc.
     - ticker: Stock symbol
     - start: Start date, format YYYY-MM-DD (required)
     - end: End date, format YYYY-MM-DD (required)
@@ -68,7 +68,11 @@ async def calculate_technical_indicators(
             }
         
         df = hist.copy()
-
+        
+        # Drop rows with NaN in Close price to ensure valid calculations
+        df = df.dropna(subset=["Close"])
+        data_points = len(df)
+        
         # Dynamically derive indicator parameters (avoid exceeding available points)
         # Moving averages: use fractions of data length
         sma_short = min(5, max(3, data_points // 12))  # short-term MA: ~1/12 of data
@@ -80,7 +84,7 @@ async def calculate_technical_indicators(
         
         rsi_period = min(14, max(7, data_points // 4))
         atr_period = min(14, max(7, data_points // 4))
-        bb_period = min(20, max(10, data_points // 3))
+        stoch_period = min(14, max(7, data_points // 4))
 
         # Moving averages
         df["SMA_short"] = ta.sma(df["Close"], length=sma_short)
@@ -98,10 +102,10 @@ async def calculate_technical_indicators(
             if macd is not None:
                 df = pd.concat([df, macd], axis=1)
 
-        # Bollinger Bands
-        bbands = ta.bbands(df["Close"], length=bb_period, std=2)
-        if bbands is not None:
-            df = pd.concat([df, bbands], axis=1)
+        # Stochastic Oscillator
+        stoch = ta.stoch(df["High"], df["Low"], df["Close"], k=stoch_period, d=3)
+        if stoch is not None:
+            df = pd.concat([df, stoch], axis=1)
 
         # ATR (Volatility)
         df["ATR"] = ta.atr(df["High"], df["Low"], df["Close"], length=atr_period)
@@ -176,21 +180,28 @@ async def calculate_technical_indicators(
                 signals.append("MACD below signal line — bearish momentum.")
                 signal_strength["bearish"] += 1
 
-        # Bollinger Band signal
-        bb_upper_col = f"BBU_{bb_period}_2.0"
-        bb_lower_col = f"BBL_{bb_period}_2.0"
-        bb_mid_col = f"BBM_{bb_period}_2.0"
+        # Stochastic Oscillator signal
+        stoch_k_col = f"STOCHk_{stoch_period}_3_3"
+        stoch_d_col = f"STOCHd_{stoch_period}_3_3"
         
-        bb_upper = latest.get(bb_upper_col)
-        bb_lower = latest.get(bb_lower_col)
-        bb_mid = latest.get(bb_mid_col)
+        stoch_k = latest.get(stoch_k_col)
+        stoch_d = latest.get(stoch_d_col)
         
-        if pd.notna(bb_upper) and pd.notna(bb_lower):
-            if current_price > float(bb_upper):
-                signals.append("Price broke above Bollinger upper band — potential overbought.")
+        if pd.notna(stoch_k) and pd.notna(stoch_d):
+            stoch_k_val = float(stoch_k)
+            stoch_d_val = float(stoch_d)
+            if stoch_k_val > stoch_d_val:
+                signals.append(f"Stochastic %K above %D — bullish momentum.")
+                signal_strength["bullish"] += 1
+            else:
+                signals.append(f"Stochastic %K below %D — bearish momentum.")
                 signal_strength["bearish"] += 1
-            elif current_price < float(bb_lower):
-                signals.append("Price broke below Bollinger lower band — potential oversold.")
+            
+            if stoch_k_val > 80:
+                signals.append(f"Stochastic({stoch_period})={stoch_k_val:.1f} — overbought zone.")
+                signal_strength["bearish"] += 1
+            elif stoch_k_val < 20:
+                signals.append(f"Stochastic({stoch_period})={stoch_k_val:.1f} — oversold zone.")
                 signal_strength["bullish"] += 1
 
         # Overall signal
@@ -214,7 +225,7 @@ async def calculate_technical_indicators(
                 "ema_fast": ema_fast,
                 "ema_slow": ema_slow,
                 "rsi": rsi_period,
-                "bb": bb_period,
+                "stoch": stoch_period,
                 "atr": atr_period,
             },
             "indicators": {
@@ -227,6 +238,7 @@ async def calculate_technical_indicators(
                 },
                 "momentum": {
                     f"RSI_{rsi_period}": round(float(rsi), 2) if pd.notna(rsi) else None,
+                    f"STOCH_{stoch_period}": round(float(stoch_k), 2) if pd.notna(stoch_k) else None,
                 },
                 "trend": {
                     "MACD": round(float(macd_val), 4) if pd.notna(macd_val) else None,
@@ -234,9 +246,6 @@ async def calculate_technical_indicators(
                     "MACD_histogram": round(float(macd_hist), 4) if pd.notna(macd_hist) else None,
                 },
                 "volatility": {
-                    f"BB_upper_{bb_period}": round(float(bb_upper), 2) if pd.notna(bb_upper) else None,
-                    f"BB_middle_{bb_period}": round(float(bb_mid), 2) if pd.notna(bb_mid) else None,
-                    f"BB_lower_{bb_period}": round(float(bb_lower), 2) if pd.notna(bb_lower) else None,
                     f"ATR_{atr_period}": round(float(latest.get("ATR")), 2) if pd.notna(latest.get("ATR")) else None,
                 },
             },

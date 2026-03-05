@@ -19,6 +19,7 @@ router = APIRouter()
 class QueryRequest(BaseModel):
     message: str
     history: list[dict] | None = None
+    thread_id: str | None = None
 
 
 @router.post("/api/query")
@@ -28,10 +29,9 @@ async def query_agent(req: QueryRequest):
     async def event_stream():
         agent = get_agent()
 
-        # Build message history
         messages = []
         if req.history:
-            for msg in req.history[-10:]:  # Last 10 messages for context
+            for msg in req.history[-10:]:
                 if msg.get("role") == "user":
                     messages.append(HumanMessage(content=msg["content"]))
                 elif msg.get("role") == "assistant":
@@ -41,6 +41,9 @@ async def query_agent(req: QueryRequest):
 
         messages.append(HumanMessage(content=req.message))
 
+        thread_id = req.thread_id or str(uuid.uuid4())
+        config = {"configurable": {"thread_id": thread_id}}
+
         try:
             tool_calls_info = []
             coordinator_data_sent = False
@@ -48,6 +51,7 @@ async def query_agent(req: QueryRequest):
 
             async for event in agent.astream_events(
                 {"messages": messages},
+                config=config,
                 version="v2",
             ):
                 kind = event["event"]
@@ -82,6 +86,7 @@ async def query_agent(req: QueryRequest):
                 elif kind == "on_tool_start":
                     # Tool invocation started
                     tool_name = event.get("name", "unknown")
+                    logger.info(f"[query] Tool start: {tool_name}")
                     tool_input = event["data"].get("input", {})
                     step = {
                         "id": str(uuid.uuid4())[:8],
@@ -96,19 +101,31 @@ async def query_agent(req: QueryRequest):
                     # Tool invocation completed
                     tool_name = event.get("name", "unknown")
                     output = event["data"].get("output", "")
+                    logger.info(f"[query] Tool end: {tool_name}, output type: {type(output).__name__}")
 
                     # Try to parse structured output
                     metadata_payload = None
                     try:
-                        if isinstance(output, str):
-                            # Use json_repair to parse tool-returned JSON strings, tolerate minor format issues
-                            parsed = json_repair.loads(output)
-                        else:
-                            parsed = output
+                        # Extract content from ToolMessage object
+                        raw_content = ""
+                        if hasattr(output, "content"):
+                            raw_content = output.content
+                        elif isinstance(output, str):
+                            raw_content = output
+                        
+                        # Parse the content as JSON
+                        parsed = None
+                        if raw_content:
+                            try:
+                                parsed = json_repair.loads(raw_content)
+                                logger.info(f"[query] Parsed output for {tool_name}, keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'not dict'}")
+                            except Exception as e:
+                                logger.warning(f"[query] Failed to parse {tool_name} output: {e}")
 
                         # Detect market data with OHLCV for chart rendering
                         if isinstance(parsed, dict):
                             if "ohlcv" in parsed:
+                                logger.info(f"[query] Found ohlcv in {tool_name} output!")
                                 # Convert lowercase keys to uppercase for frontend compatibility
                                 ohlcv_data = parsed.get("ohlcv", [])
                                 formatted_ohlcv = []
@@ -131,14 +148,17 @@ async def query_agent(req: QueryRequest):
                                     "trend": parsed.get("trend"),
                                 }
                             elif "indicators" in parsed:
+                                logger.info(f"[query] Found indicators in {tool_name} output")
                                 metadata_payload = {
                                     "type": "technical",
                                     "ticker": parsed.get("ticker"),
                                     "indicators": parsed.get("indicators"),
                                     "signals": parsed.get("signals"),
                                 }
-                    except (json.JSONDecodeError, TypeError):
-                        pass
+                            else:
+                                logger.info(f"[query] No ohlcv or indicators in {tool_name}, keys: {list(parsed.keys())}")
+                    except Exception as e:
+                        logger.error(f"[query] Error parsing tool output: {e}")
 
                     # Update tool step status
                     for step in tool_calls_info:

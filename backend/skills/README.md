@@ -30,7 +30,7 @@ Company financials, valuation metrics, and earnings.
 Technical indicators and trading signals.
 
 **Tools:**
-- `calculate_technical_indicators(ticker, period)` - MA, RSI, MACD, Bollinger Bands, ATR
+- `calculate_technical_indicators(ticker, period)` - MA, RSI, MACD, Stochastic, ATR
 
 **Use cases:** Trend analysis, momentum signals, overbought/oversold detection
 

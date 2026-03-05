@@ -1,7 +1,7 @@
 # Technical Analysis Skill Guidelines
 
 ## When to Use
-- User asks about technical indicators (MA, RSI, MACD, Bollinger Bands)
+- User asks about technical indicators (MA, RSI, MACD, Stochastic, ATR)
 - User wants buy/sell signals or trading recommendations
 - User inquires about trend analysis or momentum
 - User asks about overbought/oversold conditions
