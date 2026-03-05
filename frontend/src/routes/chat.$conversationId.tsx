@@ -66,15 +66,21 @@ function ConversationPage() {
     const text = input.trim();
     setInput("");
     try {
-      await chatStorage.init();
-      const newId = await chatStorage.createConversation(text);
-      navigate({
-        to: "/chat/$conversationId",
-        params: { conversationId: newId },
-        state: { initialMessage: text },
-      });
+      // 已在某个对话页：继续在当前会话中发送
+      if (conversationId) {
+        await send(text);
+      } else {
+        // 没有会话 ID 时，新建会话并跳转
+        await chatStorage.init();
+        const newId = await chatStorage.createConversation(text);
+        navigate({
+          to: "/chat/$conversationId",
+          params: { conversationId: newId },
+          state: { initialMessage: text },
+        });
+      }
     } catch (err) {
-      console.error("Failed to create conversation:", err);
+      console.error("Failed to send message:", err);
     }
   };
 

@@ -44,15 +44,25 @@ export function MessageRenderer({ message }: Props) {
 
       <div
         className={clsx(
-          "max-w-[85%] rounded-2xl px-5 py-3.5 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.9)] border backdrop-blur-2xl",
+          "rounded-2xl px-5 py-3.5 text-sm shadow-[0_16px_40px_rgba(15,23,42,0.9)] border backdrop-blur-2xl",
           isUser
-            ? "bg-emerald-500/15 text-emerald-100 border-emerald-400/80 rounded-tr-sm"
-            : "bg-slate-900/80 text-slate-50 border-slate-700/80 rounded-tl-sm"
+            ? "max-w-[85%] bg-emerald-500/15 text-emerald-100 border-emerald-400/80 rounded-tr-sm"
+            : "w-full bg-slate-900/80 text-slate-50 border-slate-700/80 rounded-tl-sm"
         )}
       >
+        {/* Coordinator thinking (above answer, expanded by default) */}
+        {!isUser && message.metadata?.coordinator && (
+          <div className="mb-3">
+            <CoordinatorFold coordinator={message.metadata.coordinator} />
+          </div>
+        )}
+
+        {/* Metadata cards (market, technical — display before content) */}
+        {message.metadata && <MetadataCardsTop metadata={message.metadata} />}
+
         {/* Message content */}
         {message.content && (
-          <div className="prose prose-invert prose-sm max-w-none">
+          <div className={clsx("prose prose-invert prose-sm max-w-none", message.metadata && "mt-3")}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm, remarkMath]}
               rehypePlugins={[rehypeKatex]}
@@ -62,8 +72,10 @@ export function MessageRenderer({ message }: Props) {
           </div>
         )}
 
-        {/* Metadata cards */}
-        {message.metadata && <MetadataCards metadata={message.metadata} />}
+        {/* Agent reasoning steps (display after content) */}
+        {message.metadata?.steps && message.metadata.steps.length > 0 && (
+          <StepsFold steps={message.metadata.steps} />
+        )}
       </div>
 
       {/* User avatar */}
@@ -76,27 +88,21 @@ export function MessageRenderer({ message }: Props) {
   );
 }
 
-function MetadataCards({ metadata }: { metadata: MessageMetadata }) {
+function MetadataCardsTop({ metadata }: { metadata: MessageMetadata }) {
   return (
-    <div className="mt-3 space-y-3">
-      {/* Coordinator thinking process */}
-      {metadata.coordinator && (
-        <CoordinatorFold coordinator={metadata.coordinator} />
-      )}
-
+    <div className="space-y-3">
       {/* Market data card */}
-      {metadata.type === "market" && metadata.ticker && (
+      {(metadata.type === "market" ||
+        metadata.type === "hybrid" ||
+        (!!metadata.ticker && !!metadata.ohlcv?.length)) && (
         <MarketCard metadata={metadata} />
       )}
 
       {/* Technical indicators card */}
-      {metadata.type === "technical" && metadata.indicators && (
+      {(metadata.type === "technical" ||
+        metadata.type === "hybrid" ||
+        !!metadata.indicators) && (
         <TechnicalCard metadata={metadata} />
-      )}
-
-      {/* Agent reasoning steps */}
-      {metadata.steps && metadata.steps.length > 0 && (
-        <StepsFold steps={metadata.steps} />
       )}
     </div>
   );
@@ -120,7 +126,7 @@ function MarketCard({ metadata }: { metadata: MessageMetadata }) {
         : "text-slate-500";
 
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+    <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm w-full">
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <span className="font-mono font-semibold text-slate-800 text-base">{metadata.ticker}</span>
@@ -150,20 +156,36 @@ function MarketCard({ metadata }: { metadata: MessageMetadata }) {
 
 function TechnicalCard({ metadata }: { metadata: MessageMetadata }) {
   const indicators = metadata.indicators || {};
+  
+  // Flatten nested indicators structure
+  const flatIndicators: Record<string, number | null> = {};
+  
+  Object.entries(indicators).forEach(([category, values]) => {
+    if (typeof values === 'object' && values !== null && !Array.isArray(values)) {
+      // Nested structure (moving_averages, momentum, trend, volatility)
+      Object.entries(values as Record<string, number | null>).forEach(([key, value]) => {
+        flatIndicators[key] = value;
+      });
+    } else {
+      // Flat structure (backward compatibility)
+      flatIndicators[category] = values as number | null;
+    }
+  });
+  
   return (
-    <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl p-4 shadow-[0_18px_45px_rgba(15,23,42,0.95)] backdrop-blur-2xl">
+    <div className="bg-slate-950/80 border border-slate-700/80 rounded-xl p-4 shadow-[0_18px_45px_rgba(15,23,42,0.95)] backdrop-blur-2xl w-full">
       <div className="text-xs text-slate-300 mb-3 font-semibold uppercase tracking-wider">
         技术指标
       </div>
       <div className="grid grid-cols-3 gap-3 text-xs">
-        {Object.entries(indicators).map(([key, value]) => (
+        {Object.entries(flatIndicators).map(([key, value]) => (
           <div
             key={key}
             className="bg-slate-900/80 rounded-lg p-2.5 border border-slate-700/80"
           >
             <div className="text-slate-200 font-medium">{key}</div>
             <div className="font-mono font-semibold text-slate-50 mt-1">
-              {value !== null ? value : "N/A"}
+              {value !== null && value !== undefined ? value : "N/A"}
             </div>
           </div>
         ))}
@@ -188,7 +210,7 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
   if (!steps || steps.length === 0) return null;
 
   return (
-    <div className="border border-slate-700/80 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(15,23,42,0.95)] bg-slate-950/80 backdrop-blur-2xl mt-4">
+    <div className="border border-slate-700/80 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(15,23,42,0.95)] bg-slate-950/80 backdrop-blur-2xl mt-4 w-full">
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-4 py-2.5 bg-slate-900/80 hover:bg-slate-800/80 text-xs text-slate-300 font-medium transition-colors border-b border-transparent data-[state=open]:border-slate-700/70"
@@ -227,9 +249,25 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
 }
 
 function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordinator"] }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true); // Default to open
+  const [hasCollapsed, setHasCollapsed] = useState(false);
 
   if (!coordinator) return null;
+
+  // Check if we have valid coordinator data
+  const hasReasoning = coordinator.reasoning && coordinator.reasoning.trim().length > 0;
+  const isComplete = coordinator.isComplete === true;
+
+  if (!hasReasoning) return null;
+
+  // Auto-collapse when thinking is complete
+  if (open && !hasCollapsed && isComplete) {
+    // Use setTimeout to avoid state update during render
+    setTimeout(() => {
+      setOpen(false);
+      setHasCollapsed(true);
+    }, 500); // Small delay to let user see the complete thinking
+  }
 
   return (
     <div className="border border-purple-500/30 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(168,85,247,0.15)] bg-gradient-to-br from-purple-950/40 to-slate-950/40 backdrop-blur-2xl">
@@ -241,6 +279,9 @@ function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordi
         <span className="flex items-center gap-2">
           <span className="text-purple-400">🧠</span>
           <span>协调器思考过程</span>
+          {!isComplete && (
+            <span className="text-[10px] text-purple-400/80 animate-pulse">思考中…</span>
+          )}
         </span>
         {open ? (
           <ChevronDown className="w-4 h-4 text-purple-400" />
@@ -249,50 +290,17 @@ function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordi
         )}
       </button>
       {open && (
-        <div className="px-4 py-3 space-y-3 bg-slate-950/50">
-          {/* Reasoning */}
-          {coordinator.reasoning && (
-            <div className="space-y-1.5">
-              <div className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
-                分析
-              </div>
-              <div className="text-xs text-slate-200 leading-relaxed bg-slate-900/50 rounded-lg p-2.5 border border-slate-700/50">
-                {coordinator.reasoning}
-              </div>
-            </div>
-          )}
-
-          {/* Tool Plan */}
-          {coordinator.tool_plan && coordinator.tool_plan.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-xs font-semibold text-purple-300 uppercase tracking-wider">
-                工具调用计划
-              </div>
-              <div className="space-y-2">
-                {coordinator.tool_plan.map((plan, i) => (
-                  <div
-                    key={i}
-                    className="bg-slate-900/50 rounded-lg p-2.5 border border-slate-700/50 space-y-1"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-emerald-400 text-xs font-semibold">
-                        {plan.tool}
-                      </span>
-                      <span className="text-slate-500 text-xs">→</span>
-                      <span className="text-slate-300 text-xs flex-1">
-                        {plan.purpose}
-                      </span>
-                    </div>
-                    {plan.params && Object.keys(plan.params).length > 0 && (
-                      <div className="text-[11px] text-slate-400 font-mono bg-slate-950/50 rounded px-2 py-1">
-                        {JSON.stringify(plan.params)}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="px-4 py-3 bg-slate-950/50">
+          <div className="prose prose-invert prose-sm max-w-none prose-headings:text-purple-300 prose-headings:text-xs prose-headings:font-semibold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mb-2 prose-p:text-slate-200 prose-p:text-xs prose-p:leading-relaxed prose-ul:text-slate-200 prose-ul:text-xs prose-li:my-1 prose-strong:text-emerald-400 prose-strong:font-semibold">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+            >
+              {coordinator.reasoning}
+            </ReactMarkdown>
+            {!isComplete && (
+              <span className="inline-block w-2 h-4 ml-1 bg-purple-400 animate-pulse align-middle" aria-hidden />
+            )}
+          </div>
         </div>
       )}
     </div>

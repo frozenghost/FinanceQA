@@ -28,6 +28,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import json_repair
+
 # Ensure backend root is on sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -131,7 +133,8 @@ class ModelEvaluator:
                 content = content.split("\n", 1)[1]  # Remove first ```json line
                 content = content.rsplit("```", 1)[0]  # Remove trailing ```
 
-            result = json.loads(content)
+            # 使用 json_repair.loads 解析裁判模型返回的 JSON，容错轻微格式错误
+            result = json_repair.loads(content)
 
             # Calculate keyword coverage
             answer_lower = answer.lower()

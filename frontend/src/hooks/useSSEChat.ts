@@ -30,6 +30,7 @@ export interface CoordinatorData {
     purpose: string;
   }>;
   needs_tools: boolean;
+  isComplete?: boolean; // 标记思考是否完成
 }
 
 export interface MessageMetadata {
@@ -170,8 +171,7 @@ export function useSSEChat(
             try {
               const data = JSON.parse(line.slice(6));
 
-              if (data.type === "token") {
-                // Stream text token
+              if (data.type === "answer") {
                 setMessages((prev) =>
                   prev.map((m) => {
                     if (m.id === assistantId) {
@@ -184,21 +184,68 @@ export function useSSEChat(
                     return m;
                   })
                 );
-              } else if (data.type === "coordinator") {
-                // Coordinator thinking process
+              } else if (data.type === "thinking") {
                 setMessages((prev) =>
                   prev.map((m) => {
-                    if (m.id === assistantId) {
+                    if (m.id !== assistantId) return m;
+                    
+                    // Stream tokens for live display (Markdown format)
+                    if (data.token !== undefined) {
+                      const cur = m.metadata?.coordinator;
+                      let currentReasoning = (cur?.reasoning ?? "") + data.token;
+                      
+                      // Track if we're inside a JSON code block
+                      const jsonBlockStart = currentReasoning.indexOf("```json");
+                      
+                      if (jsonBlockStart !== -1) {
+                        // Found ```json, check if the block is closed
+                        const afterJsonStart = currentReasoning.substring(jsonBlockStart + 7); // 7 = length of "```json"
+                        const jsonBlockEnd = afterJsonStart.indexOf("```");
+                        
+                        if (jsonBlockEnd === -1) {
+                          // JSON block not closed yet, truncate at ```json
+                          currentReasoning = currentReasoning.substring(0, jsonBlockStart).trim();
+                        } else {
+                          // JSON block is closed, remove the entire block
+                          const blockEndPos = jsonBlockStart + 7 + jsonBlockEnd + 3; // +3 for closing ```
+                          currentReasoning = currentReasoning.substring(0, jsonBlockStart).trim() + 
+                                           currentReasoning.substring(blockEndPos).trim();
+                        }
+                      }
+                      
                       finalAssistantMsg = {
                         ...m,
                         metadata: {
                           ...m.metadata,
-                          coordinator: data.data,
+                          coordinator: {
+                            reasoning: currentReasoning,
+                            tool_plan: [],
+                            needs_tools: false,
+                          },
                         } as MessageMetadata,
                       };
-                      return finalAssistantMsg;
                     }
-                    return m;
+                    return finalAssistantMsg!;
+                  })
+                );
+              } else if (data.type === "thinking_complete") {
+                // Coordinator thinking complete - replace with final Markdown
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== assistantId) return m;
+                    finalAssistantMsg = {
+                      ...m,
+                      metadata: {
+                        ...m.metadata,
+                        coordinator: {
+                          reasoning: data.markdown || "",
+                          tool_plan: [],
+                          needs_tools: true,
+                          isComplete: true,
+                        },
+                      } as MessageMetadata,
+                    };
+                    return finalAssistantMsg;
                   })
                 );
               } else if (data.type === "metadata") {
@@ -206,11 +253,28 @@ export function useSSEChat(
                 setMessages((prev) =>
                   prev.map((m) => {
                     if (m.id === assistantId) {
+                      const prevMeta = m.metadata || {};
+                      const payload = data.payload || {};
+
+                      // 合并 type，支持同时存在 market + technical 的情况
+                      const types = new Set<string>();
+                      if (typeof prevMeta.type === "string") types.add(prevMeta.type);
+                      if (typeof payload.type === "string") types.add(payload.type);
+
+                      let mergedType: MessageMetadata["type"] | undefined =
+                        (payload.type as MessageMetadata["type"]) ??
+                        (prevMeta.type as MessageMetadata["type"]);
+
+                      if (types.has("market") && types.has("technical")) {
+                        mergedType = "hybrid";
+                      }
+
                       finalAssistantMsg = {
                         ...m,
                         metadata: {
-                          ...m.metadata,
-                          ...data.payload,
+                          ...prevMeta,
+                          ...payload,
+                          ...(mergedType ? { type: mergedType } : {}),
                         } as MessageMetadata,
                       };
                       return finalAssistantMsg;

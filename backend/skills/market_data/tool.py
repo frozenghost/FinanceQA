@@ -66,24 +66,52 @@ async def get_real_time_quote(ticker: str) -> dict:
 @cached(key_prefix="ohlcv", ttl=3600)
 async def get_historical_prices(
     ticker: str,
-    period: Literal["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max"] = "1mo",
-    interval: Literal["1d", "1wk", "1mo"] = "1d",
+    period: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    interval: str = "1d",
 ) -> dict:
     """
     获取股票历史价格数据（OHLCV）。
     - ticker: 股票代码
-    - period: 时间范围，支持 1d/5d/1mo/3mo/6mo/1y/2y/5y/max
+    - period: 时间范围，支持 1d/5d/1mo/3mo/6mo/1y/2y/5y/max（与 start/end 二选一）
+    - start: 开始日期，格式 YYYY-MM-DD（与 period 二选一，需配合 end 使用）
+    - end: 结束日期，格式 YYYY-MM-DD（与 period 二选一，需配合 start 使用）
     - interval: 数据粒度，支持 1d(日线)/1wk(周线)/1mo(月线)
     返回完整的 OHLCV 数据列表，包含开盘价、最高价、最低价、收盘价、成交量。
     适用于绘制K线图、计算技术指标、分析历史走势等场景。
+    
+    示例：
+    - get_historical_prices("AAPL", period="1mo")  # 最近1个月
+    - get_historical_prices("AAPL", start="2024-03-15", end="2024-03-21")  # 指定日期范围
     """
-    logger.info(f"[get_historical_prices] 开始获取 {ticker} 历史数据: period={period}, interval={interval}")
+    # 参数验证
+    if period and (start or end):
+        return {"error": "period 和 start/end 参数不能同时使用，请选择其一"}
+    
+    if (start and not end) or (end and not start):
+        return {"error": "start 和 end 参数必须同时提供"}
+    
+    if not period and not start:
+        period = "1mo"  # 默认值
+    
+    if period:
+        time_range = f"period={period}"
+        logger.info(f"[get_historical_prices] 开始获取 {ticker} 历史数据: period={period}, interval={interval}")
+    else:
+        time_range = f"start={start}, end={end}"
+        logger.info(f"[get_historical_prices] 开始获取 {ticker} 历史数据: start={start}, end={end}, interval={interval}")
     
     try:
         import asyncio
         loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        hist = await loop.run_in_executor(None, lambda: tk.history(period=period, interval=interval))
+        
+        # 根据参数类型获取历史数据
+        if period:
+            hist = await loop.run_in_executor(None, lambda: tk.history(period=period, interval=interval))
+        else:
+            hist = await loop.run_in_executor(None, lambda: tk.history(start=start, end=end, interval=interval))
 
         if hist.empty:
             logger.warning(f"[get_historical_prices] 未找到 {ticker} 的历史数据")
@@ -106,7 +134,7 @@ async def get_historical_prices(
 
         result = {
             "ticker": ticker,
-            "period": period,
+            "time_range": time_range,
             "interval": interval,
             "data_points": len(ohlcv),
             "period_return_pct": round(float(period_return), 2),

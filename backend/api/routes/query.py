@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 
+import json_repair
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessageChunk, HumanMessage
@@ -42,37 +43,41 @@ async def query_agent(req: QueryRequest):
 
         try:
             tool_calls_info = []
-            coordinator_sent = False
+            coordinator_data_sent = False
+            current_node = None
 
             async for event in agent.astream_events(
                 {"messages": messages},
                 version="v2",
             ):
                 kind = event["event"]
-                
-                # 捕获协调器节点的输出
-                if kind == "on_chain_end" and not coordinator_sent:
-                    metadata = event.get("metadata", {})
-                    langgraph_node = metadata.get("langgraph_node", "")
-                    
-                    if langgraph_node == "coordinator":
+                metadata = event.get("metadata", {})
+
+                if kind == "on_chain_start":
+                    current_node = metadata.get("langgraph_node") or current_node
+                elif kind == "on_chain_end":
+                    if metadata.get("langgraph_node") == current_node:
+                        current_node = None
+                    if metadata.get("langgraph_node") == "coordinator" and not coordinator_data_sent:
                         output = event["data"].get("output", {})
                         if output and isinstance(output, dict):
-                            coordinator_data = {
-                                "reasoning": output.get("coordination_reasoning", ""),
-                                "tool_plan": output.get("tool_plan", []),
-                                "needs_tools": output.get("needs_tools", False),
-                            }
-                            if coordinator_data["reasoning"] or coordinator_data["tool_plan"]:
-                                yield f"data: {json.dumps({'type': 'coordinator', 'data': coordinator_data}, default=str)}\n\n"
-                                coordinator_sent = True
+                            # 发送 Markdown 内容用于前端显示
+                            markdown_content = output.get("coordinator_markdown", "")
+                            if markdown_content:
+                                # 发送一个特殊的 token 来标记协调器思考完成
+                                yield f"data: {json.dumps({'type': 'thinking_complete', 'markdown': markdown_content}, default=str)}\n\n"
+                                coordinator_data_sent = True
 
                 if kind == "on_chat_model_stream":
-                    # Streaming tokens from the LLM
+                    node = metadata.get("langgraph_node") or current_node
                     chunk = event["data"]["chunk"]
                     if isinstance(chunk, AIMessageChunk) and chunk.content:
                         token = chunk.content
-                        yield f"data: {json.dumps({'type': 'token', 'token': token})}\n\n"
+                        if node == "coordinator":
+                            # Stream coordinator tokens for live display
+                            yield f"data: {json.dumps({'type': 'thinking', 'token': token}, default=str)}\n\n"
+                        else:
+                            yield f"data: {json.dumps({'type': 'answer', 'token': token}, default=str)}\n\n"
 
                 elif kind == "on_tool_start":
                     # Tool invocation started
@@ -96,17 +101,31 @@ async def query_agent(req: QueryRequest):
                     metadata_payload = None
                     try:
                         if isinstance(output, str):
-                            parsed = json.loads(output)
+                            # 使用 json_repair 解析工具返回的 JSON 字符串，兼容轻微格式问题
+                            parsed = json_repair.loads(output)
                         else:
                             parsed = output
 
                         # Detect market data with OHLCV for chart rendering
                         if isinstance(parsed, dict):
                             if "ohlcv" in parsed:
+                                # Convert lowercase keys to uppercase for frontend compatibility
+                                ohlcv_data = parsed.get("ohlcv", [])
+                                formatted_ohlcv = []
+                                for item in ohlcv_data:
+                                    formatted_ohlcv.append({
+                                        "Date": item.get("date"),
+                                        "Open": item.get("open"),
+                                        "High": item.get("high"),
+                                        "Low": item.get("low"),
+                                        "Close": item.get("close"),
+                                        "Volume": item.get("volume"),
+                                    })
+                                
                                 metadata_payload = {
                                     "type": "market",
                                     "ticker": parsed.get("ticker"),
-                                    "ohlcv": parsed.get("ohlcv"),
+                                    "ohlcv": formatted_ohlcv,
                                     "current": parsed.get("current"),
                                     "change_pct": parsed.get("change_pct"),
                                     "trend": parsed.get("trend"),

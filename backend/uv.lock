@@ -578,6 +578,7 @@ dependencies = [
     { name = "apscheduler" },
     { name = "fastapi" },
     { name = "jieba" },
+    { name = "json-repair" },
     { name = "langchain-chroma" },
     { name = "langchain-community" },
     { name = "langchain-core" },
@@ -622,6 +623,7 @@ requires-dist = [
     { name = "apscheduler", specifier = ">=3.10" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "jieba", specifier = ">=0.42" },
+    { name = "json-repair", specifier = ">=0.58.3" },
     { name = "langchain-chroma", specifier = ">=0.1" },
     { name = "langchain-community", specifier = ">=0.3" },
     { name = "langchain-core", specifier = ">=0.3" },
@@ -1119,6 +1121,15 @@ wheels = [
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/d2/73/a009f41c5eed71c49bec53036c4b33555afcdee70682a18c6f66e396c039/jiter-0.13.0-graalpy312-graalpy250_312_native-macosx_11_0_arm64.whl", hash = "sha256:ff732bd0a0e778f43d5009840f20b935e79087b4dc65bd36f1cd0f9b04b8ff7f", size = 303808, upload-time = "2026-02-02T12:37:52.092Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/c4/10/528b439290763bff3d939268085d03382471b442f212dca4ff5f12802d43/jiter-0.13.0-graalpy312-graalpy250_312_native-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ab44b178f7981fcaea7e0a5df20e773c663d06ffda0198f1a524e91b2fde7e59", size = 337384, upload-time = "2026-02-02T12:37:53.582Z" },
     { url = "https://pypi.tuna.tsinghua.edu.cn/packages/67/8a/a342b2f0251f3dac4ca17618265d93bf244a2a4d089126e81e4c1056ac50/jiter-0.13.0-graalpy312-graalpy250_312_native-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7bb00b6d26db67a05fe3e12c76edc75f32077fb51deed13822dc648fa373bc19", size = 343768, upload-time = "2026-02-02T12:37:55.055Z" },
+]
+
+[[package]]
+name = "json-repair"
+version = "0.58.3"
+source = { registry = "https://pypi.tuna.tsinghua.edu.cn/simple" }
+sdist = { url = "https://pypi.tuna.tsinghua.edu.cn/packages/f5/e4/1a1925b4c1740bc8753f4bdfcec4528e85d89fb253af4cc8132d2f5d0f87/json_repair-0.58.3.tar.gz", hash = "sha256:bc1fad983e12b38cef066f73315765537b60b7e0544106b5c410de83aa2e1f4b", size = 59523, upload-time = "2026-03-03T06:04:05.928Z" }
+wheels = [
+    { url = "https://pypi.tuna.tsinghua.edu.cn/packages/96/16/c7cf6658004cf6b7e2df3848743bb9707bd805b309802362ac0c2dedd9ff/json_repair-0.58.3-py3-none-any.whl", hash = "sha256:0194cb1eb5c2126a47dbcc2dfcc2f27ffd55366b00fb1a21b7d5a5bc50f74ce5", size = 41101, upload-time = "2026-03-03T06:04:04.326Z" },
 ]
 
 [[package]]

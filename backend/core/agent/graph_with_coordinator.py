@@ -19,9 +19,10 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
 from core.agent.state import AgentState
 from core.agent.coordinator import (
-    coordinate_tools,
+    coordinator_chain,
     should_use_tools,
     enforce_tool_usage,
+    validate_tool_execution,
 )
 from prompts.loader import load_system_prompt
 from services.llm_client import LLMClient
@@ -63,33 +64,41 @@ def track_executed_tools(state: AgentState) -> dict:
     """跟踪已执行的工具"""
     messages = state["messages"]
     executed_tools = []
+    seen = set()
     
-    # 遍历所有消息，收集已执行的工具
+    # 遍历所有消息，收集已执行的工具（去重，保留参数）
     for msg in messages:
         if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
             for tool_call in msg.tool_calls:
                 tool_name = tool_call.get("name", "")
-                if tool_name and tool_name not in executed_tools:
-                    executed_tools.append(tool_name)
+                if tool_name and tool_name not in seen:
+                    seen.add(tool_name)
+                    executed_tools.append(
+                        {
+                            "tool": tool_name,
+                            "params": tool_call.get("args", {}) or {},
+                        }
+                    )
     
     # 对比计划和实际执行
     tool_plan = state.get("tool_plan", [])
     if tool_plan:
         planned_tools = [t["tool"] for t in tool_plan]
-        logger.info(f"[tracker] 工具执行统计:")
+        executed_names = [t["tool"] for t in executed_tools]
+        logger.info("[tracker] 工具执行统计:")
         logger.info(f"  计划: {len(planned_tools)} 个 - {', '.join(planned_tools)}")
-        logger.info(f"  实际: {len(executed_tools)} 个 - {', '.join(executed_tools)}")
-        
-        missing = set(planned_tools) - set(executed_tools)
-        extra = set(executed_tools) - set(planned_tools)
+        logger.info(f"  实际: {len(executed_names)} 个 - {', '.join(executed_names)}")
+
+        missing = set(planned_tools) - set(executed_names)
+        extra = set(executed_names) - set(planned_tools)
         
         if missing:
             logger.warning(f"  缺失: {', '.join(missing)}")
         if extra:
             logger.info(f"  额外: {', '.join(extra)}")
         if not missing and not extra:
-            logger.info(f"  ✓ 完全一致")
-    
+            logger.info("  ✓ 完全一致")
+
     return {"executed_tools": executed_tools}
 
 
@@ -359,13 +368,14 @@ def build_agent_with_coordinator():
     workflow = StateGraph(AgentState)
     
     # 添加节点
-    workflow.add_node("coordinator", coordinate_tools)          # 协调器：规划工具
+    workflow.add_node("coordinator", coordinator_chain)           # 协调器：规划工具（LCEL 便于流式）
     workflow.add_node("enforcer", enforce_tool_usage)           # 强制器：添加强制指令
     workflow.add_node("agent", agent_node)                      # Agent：LLM 推理（异步）
     workflow.add_node("tools", enhanced_tool_node)              # 工具执行（增强版）
     workflow.add_node("error_handler", error_handler_node)      # 错误处理
     workflow.add_node("retry_tools", retry_failed_tools_node)   # 重试失败的工具
     workflow.add_node("tracker", track_executed_tools)          # 跟踪器：统计执行的工具
+    workflow.add_node("validator", validate_tool_execution)     # 验证器：对比规划与实际执行
     
     # 设置入口
     workflow.set_entry_point("coordinator")
@@ -409,8 +419,9 @@ def build_agent_with_coordinator():
     # 重试工具后 → 返回 Agent
     workflow.add_edge("retry_tools", "agent")
     
-    # 跟踪器 → 结束
-    workflow.add_edge("tracker", END)
+    # 跟踪器 → 验证器 → 结束
+    workflow.add_edge("tracker", "validator")
+    workflow.add_edge("validator", END)
     
     return workflow.compile()
 

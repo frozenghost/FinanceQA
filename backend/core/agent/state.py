@@ -16,7 +16,8 @@ class AgentState(MessagesState):
     tool_plan: list[dict[str, Any]] = []  # 工具调用计划
     needs_tools: bool = False              # 是否需要工具
     coordination_reasoning: str = ""       # 协调推理过程
-    coordinator_raw_output: str = ""       # 协调器原始输出
+    coordinator_raw_output: str = ""       # 协调器原始输出（完整）
+    coordinator_markdown: str = ""         # 协调器 Markdown 输出（仅展示部分）
     executed_tools: list[str] = []         # 已执行的工具列表
     validation_failed: bool = False        # 验证是否失败
     retry_count: int = 0                   # 重试次数
