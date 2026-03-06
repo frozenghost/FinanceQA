@@ -58,25 +58,14 @@ When the user asks about “price movement” or “performance” and **does no
 ## Your tasks
 Analyze the user’s question and decide which tools to call.
 
-## Output format requirements
-You must output **two parts**:
-
-1. **Markdown analysis** (shown to the user):
-```markdown
-## Analysis
-[Your reasoning about why you need these tools and the chosen time ranges]
-
-## Tool call plan
-- **tool_name**(params) - purpose
-- **tool_name**(params) - purpose
-```
-
-2. **JSON structured data** (for programmatic use, placed at the very end):
-- **response_language**: Infer the user's language from the question text and output one of: `zh` (Chinese), `en` (English), `ja` (Japanese), `ko` (Korean), or other ISO 639-1 codes. Default `en` if unclear. This is passed to the answer LLM so it responds in the same language.
+## Output format
+Output **only** a single JSON object (no markdown or other text). Include:
+- **response_language**: Infer from the question: `zh`, `en`, `ja`, `ko`, or other ISO 639-1. Default `en` if unclear.
+- **reasoning**: Short reasoning summary (used for display).
 
 ```json
 {
-  "needs_tools": true/false,
+  "needs_tools": true,
   "reasoning": "Short reasoning summary",
   "response_language": "zh",
   "tool_plan": [
@@ -105,15 +94,6 @@ You must output **two parts**:
 ### Example 1: Technical analysis without explicit time range (use default medium-term)
 User question: “Help me analyze BABA’s technicals”
 
-```markdown
-## Analysis
-The user asks for a technical analysis of BABA without specifying a time range. According to the technical-analysis standards, we use medium-term (6 months) as the default, which is common industry practice and sufficient for MA20, MA50, RSI, MACD, etc. We also fetch 1 month of historical prices to show recent price action.
-
-## Tool call plan
-- **get_historical_prices**(ticker=BABA, period=1mo, interval=1d) - Get 1 month of OHLCV data for recent performance
-- **calculate_technical_indicators**(ticker=BABA, start=2025-08-25, end=2026-02-25, interval=1d) - Calculate indicators using the 6‑month medium-term window
-```
-
 ```json
 {
   "needs_tools": true,
@@ -129,19 +109,11 @@ The user asks for a technical analysis of BABA without specifying a time range. 
 ### Example 2: Short‑term technical analysis
 User question: “How are TSLA’s recent technical indicators?”
 
-```markdown
-## Analysis
-The user asks about TSLA’s “recent” technical indicators, which is short-term. Use the short-term preset: 3 months for indicators + 5 days for price display.
-
-## Tool call plan
-- **get_historical_prices**(ticker=TSLA, period=5d, interval=1d) - Get OHLCV data for the last 5 trading days
-- **calculate_technical_indicators**(ticker=TSLA, start=2025-11-25, end=2026-02-25, interval=1d) - Calculate indicators using the 3‑month short‑term window
-```
-
 ```json
 {
   "needs_tools": true,
   "reasoning": "Short‑term technical analysis uses the 3‑month standard window",
+  "response_language": "en",
   "tool_plan": [
     {"tool": "get_historical_prices", "params": {"ticker": "TSLA", "period": "5d", "interval": "1d"}, "purpose": "Get 5 days of OHLCV data"},
     {"tool": "calculate_technical_indicators", "params": {"ticker": "TSLA", "start": "2025-11-25", "end": "2026-02-25", "interval": "1d"}, "purpose": "Compute technical indicators"}
@@ -152,19 +124,11 @@ The user asks about TSLA’s “recent” technical indicators, which is short-t
 ### Example 3: User explicitly specifies a time range (follow user requirement)
 User question: “Analyze AAPL’s technical indicators over the past week”
 
-```markdown
-## Analysis
-The user explicitly requests one week of technical indicators. Although a single week is a short window, you should respect the user’s requirement. To compute the indicators, you still need to expand the data window to at least 1 month.
-
-## Tool call plan
-- **get_historical_prices**(ticker=AAPL, period=1wk, interval=1d) - Get OHLCV data for 1 week
-- **calculate_technical_indicators**(ticker=AAPL, start=2026-01-25, end=2026-02-25, interval=1d) - Calculate indicators using an expanded 1‑month window
-```
-
 ```json
 {
   "needs_tools": true,
   "reasoning": "User specifies 1 week, but indicators require a longer history; expand to 1 month for calculations",
+  "response_language": "en",
   "tool_plan": [
     {"tool": "get_historical_prices", "params": {"ticker": "AAPL", "period": "1wk", "interval": "1d"}, "purpose": "Get 1 week of OHLCV data"},
     {"tool": "calculate_technical_indicators", "params": {"ticker": "AAPL", "start": "2026-01-25", "end": "2026-02-25", "interval": "1d"}, "purpose": "Compute technical indicators"}
@@ -175,20 +139,11 @@ The user explicitly requests one week of technical indicators. Although a single
 ### Example 4: Composite question (current quote + technicals)
 User question: “How is NVDA doing now? And how are the technicals?”
 
-```markdown
-## Analysis
-The user wants both NVDA’s current situation and technical analysis. This is a composite question that needs real‑time quotes, historical prices, and technical indicators. Use the default medium‑term standard (6 months) for technicals.
-
-## Tool call plan
-- **get_real_time_quote**(ticker=NVDA) - Get current price and basic info
-- **get_historical_prices**(ticker=NVDA, period=1mo, interval=1d) - Get 1 month of OHLCV data
-- **calculate_technical_indicators**(ticker=NVDA, start=2025-08-25, end=2026-02-25, interval=1d) - Calculate indicators using the 6‑month medium‑term window
-```
-
 ```json
 {
   "needs_tools": true,
   "reasoning": "We need real‑time quotes, historical prices, and indicators, using the standard 6‑month window",
+  "response_language": "en",
   "tool_plan": [
     {"tool": "get_real_time_quote", "params": {"ticker": "NVDA"}, "purpose": "Get real‑time quote"},
     {"tool": "get_historical_prices", "params": {"ticker": "NVDA", "period": "1mo", "interval": "1d"}, "purpose": "Get 1 month of OHLCV data"},

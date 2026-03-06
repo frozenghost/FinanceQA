@@ -95,20 +95,16 @@ def _parse_coordinator_output(aimessage: AIMessage) -> dict:
     raw_output = content
     
     try:
-        # Extract the JSON part (assumed to be in the last code block)
-        json_content = content
+        json_content = content.strip()
         if "```json" in content:
-            # Find the last json code block
             parts = content.split("```json")
             if len(parts) > 1:
                 json_content = parts[-1].split("```")[0].strip()
         elif "```" in content:
-            # Fall back to the last generic code block
             parts = content.split("```")
             if len(parts) >= 3:
                 json_content = parts[-2].strip()
 
-        # Use json_repair.loads instead of json.loads to auto-repair and parse
         plan = json_repair.loads(json_content)
         tool_plan = plan.get("tool_plan", [])
         logger.info(f"Coordinator planned {len(tool_plan)} tool(s).")
@@ -225,7 +221,6 @@ Please choose appropriate tools based on the question type:
             f"- {t['tool']}({', '.join(f'{k}={v}' for k, v in t.get('params', {}).items())}) - {t.get('purpose', '')}"
             for t in tool_plan
         ])
-        
         enforcement_msg = f"""
 ⚠️ Coordinator analysis: {reasoning}
 
@@ -234,6 +229,10 @@ Please choose appropriate tools based on the question type:
 
 **You must strictly follow this plan, call all tools, and only then generate an answer.**
 """
+        if any(t.get("tool") == "search_knowledge_base" for t in tool_plan):
+            enforcement_msg += """
+
+**Knowledge base (search_knowledge_base)**: Present the retrieved content in full. Do not summarize or compress the tool results—include the actual explanations/definitions so the user gets complete information."""
     
     # Append enforcement instructions as a system message
     messages = state["messages"]
