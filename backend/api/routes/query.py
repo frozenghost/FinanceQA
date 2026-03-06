@@ -77,10 +77,10 @@ async def query_agent(req: QueryRequest):
                     chunk = event["data"]["chunk"]
                     if isinstance(chunk, AIMessageChunk) and chunk.content:
                         token = chunk.content
-                        if node == "coordinator":
-                            # Stream coordinator tokens for live display
-                            yield f"data: {json.dumps({'type': 'thinking', 'token': token}, default=str)}\n\n"
-                        else:
+                        # if node == "coordinator":
+                        #     # Stream coordinator tokens for live display
+                        #     yield f"data: {json.dumps({'type': 'thinking', 'token': token}, default=str)}\n\n"
+                        if node != "coordinator":
                             yield f"data: {json.dumps({'type': 'answer', 'token': token}, default=str)}\n\n"
 
                 elif kind == "on_tool_start":

@@ -78,7 +78,7 @@ export function PriceChart({ data, ticker }: Props) {
                 "0 18px 45px rgba(15,23,42,0.95)"
             }}
             labelStyle={{ color: "#9ca3af", fontWeight: 500, marginBottom: "4px" }}
-            formatter={(value: number) => [`$${value.toFixed(2)}`, "收盘价"]}
+            formatter={(value: number) => [`$${value.toFixed(2)}`, "Close"]}
           />
           <Line
             type="monotone"

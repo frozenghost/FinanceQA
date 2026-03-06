@@ -1,19 +1,21 @@
 import { createRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
-import { Send, Square, Sparkles } from "lucide-react";
+import { Send, Square } from "lucide-react";
 import { rootRoute } from "./__root";
 import { useSSEChat } from "../hooks/useSSEChat";
 import { MessageRenderer } from "../components/MessageRenderer";
 import { chatStorage } from "../services/chatStorage";
+
+const CHAT_OPTIONS_SKIP = { skipInitialLoad: true } as const;
+const CHAT_OPTIONS_LOAD = { skipInitialLoad: false } as const;
 
 function ConversationPage() {
   const { conversationId } = conversationRoute.useParams();
   const navigate = useNavigate();
   const locationState = useRouterState({ select: (s) => s.location.state });
   const hasInitialMessage = !!locationState?.initialMessage;
-  const { messages, isLoading, send, stop } = useSSEChat(conversationId, {
-    skipInitialLoad: hasInitialMessage,
-  });
+  const chatOptions = hasInitialMessage ? CHAT_OPTIONS_SKIP : CHAT_OPTIONS_LOAD;
+  const { messages, isLoading, send, stop } = useSSEChat(conversationId, chatOptions);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSent = useRef(false);
@@ -36,8 +38,12 @@ function ConversationPage() {
     ) {
       initialMessageSent.current = true;
       (async () => {
-        await chatStorage.init();
-        send(initialMessage);
+        try {
+          await chatStorage.init();
+          await send(initialMessage);
+        } catch (err) {
+          console.error("Failed to send initial message:", err);
+        }
       })();
     }
   }, [conversationId, locationState?.initialMessage, send]);

@@ -1,5 +1,5 @@
 /**
- * 对话历史管理 hook
+ * Chat history hook
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -10,7 +10,7 @@ export function useChatHistory() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 初始化数据库并加载对话列表
+  // Init DB and load conversation list
   useEffect(() => {
     const init = async () => {
       try {

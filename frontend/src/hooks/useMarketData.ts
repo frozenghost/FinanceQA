@@ -20,7 +20,7 @@ export interface MarketData {
   change_pct: number;
   high: number;
   low: number;
-  trend: "上涨" | "下跌" | "震荡";
+  trend: "up" | "down" | "sideways";
   ohlcv: OHLCV[];
   data_source: string;
   delay_note: string;

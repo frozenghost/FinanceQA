@@ -30,7 +30,7 @@ export interface CoordinatorData {
     purpose: string;
   }>;
   needs_tools: boolean;
-  isComplete?: boolean; // 标记思考是否完成
+  isComplete?: boolean;
 }
 
 export interface MessageMetadata {
@@ -92,12 +92,24 @@ export function useSSEChat(
     init();
   }, [conversationId, skipInitialLoad]);
 
+  // Abort SSE on unmount or when conversationId changes (e.g. page/conversation switch)
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    abortRef.current?.abort();
+    setIsLoading(false);
+  }, [conversationId]);
+
   const send = useCallback(
     async (input: string) => {
       setIsLoading(true);
       abortRef.current = new AbortController();
 
-      // 创建或使用现有对话
+      // Create or reuse conversation
       let convId = currentConversationId;
       if (!convId && dbInitialized.current) {
         try {
@@ -125,7 +137,7 @@ export function useSSEChat(
 
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
-      // 保存用户消息
+      // Persist user message
       if (convId && dbInitialized.current) {
         try {
           await chatStorage.saveMessage(convId, userMsg);
@@ -253,17 +265,19 @@ export function useSSEChat(
                 setMessages((prev) =>
                   prev.map((m) => {
                     if (m.id === assistantId) {
-                      const prevMeta = m.metadata || {};
-                      const payload = data.payload || {};
+                      const prevMeta: Partial<MessageMetadata> = m.metadata ?? {};
+                      const payload = (data.payload ?? {}) as {
+                        type?: MessageMetadata["type"];
+                        [k: string]: unknown;
+                      };
 
-                      // 合并 type，支持同时存在 market + technical 的情况
+                      // Merge type (e.g. market + technical -> hybrid)
                       const types = new Set<string>();
                       if (typeof prevMeta.type === "string") types.add(prevMeta.type);
                       if (typeof payload.type === "string") types.add(payload.type);
 
                       let mergedType: MessageMetadata["type"] | undefined =
-                        (payload.type as MessageMetadata["type"]) ??
-                        (prevMeta.type as MessageMetadata["type"]);
+                        payload.type ?? prevMeta.type;
 
                       if (types.has("market") && types.has("technical")) {
                         mergedType = "hybrid";
@@ -288,7 +302,7 @@ export function useSSEChat(
                     if (m.id === assistantId) {
                       finalAssistantMsg = {
                         ...m,
-                        content: m.content + `\n\n> 错误: ${data.message}`,
+                        content: m.content + `\n\n> Error: ${data.message}`,
                       };
                       return finalAssistantMsg;
                     }
@@ -302,7 +316,7 @@ export function useSSEChat(
           }
         }
 
-        // 保存完整的助手消息
+        // Persist full assistant message
         if (convId && dbInitialized.current && finalAssistantMsg.content) {
           try {
             await chatStorage.saveMessage(convId, finalAssistantMsg);
@@ -317,7 +331,7 @@ export function useSSEChat(
               m.id === assistantId
                 ? {
                     ...m,
-                    content: m.content || "抱歉，请求出现错误，请稍后重试。",
+                    content: m.content || "Request failed. Please try again later.",
                   }
                 : m
             )

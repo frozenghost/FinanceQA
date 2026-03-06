@@ -322,7 +322,7 @@ function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordi
           <span className="text-pink-300">🧠</span>
           <span>Coordinator thinking process</span>
           {!isComplete && (
-            <span className="text-[10px] text-pink-300/80 animate-pulse">思考中…</span>
+            <span className="text-[10px] text-pink-300/80 animate-pulse">Thinking…</span>
           )}
         </span>
         {open ? (

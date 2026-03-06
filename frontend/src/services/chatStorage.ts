@@ -1,5 +1,5 @@
 /**
- * IndexedDB 聊天存储服务
+ * IndexedDB chat storage service
  */
 
 import type { Message } from "../hooks/useSSEChat";
@@ -38,7 +38,7 @@ class ChatStorageService {
       request.onupgradeneeded = (event) => {
         const db = (event.target as IDBOpenDBRequest).result;
 
-        // 对话表
+        // Conversations store
         if (!db.objectStoreNames.contains(STORE_CONVERSATIONS)) {
           const conversationStore = db.createObjectStore(STORE_CONVERSATIONS, {
             keyPath: "id",
@@ -48,7 +48,7 @@ class ChatStorageService {
           });
         }
 
-        // 消息表
+        // Messages store
         if (!db.objectStoreNames.contains(STORE_MESSAGES)) {
           const messageStore = db.createObjectStore(STORE_MESSAGES, {
             keyPath: "id",
@@ -67,7 +67,7 @@ class ChatStorageService {
     return this.db;
   }
 
-  // 创建新对话
+  // Create new conversation
   async createConversation(firstMessage: string): Promise<string> {
     const db = this.ensureDB();
     const id = crypto.randomUUID();
@@ -91,7 +91,7 @@ class ChatStorageService {
     });
   }
 
-  // 保存消息
+  // Save message
   async saveMessage(
     conversationId: string,
     message: Message
@@ -109,11 +109,9 @@ class ChatStorageService {
         "readwrite"
       );
 
-      // 保存消息
       const messageStore = tx.objectStore(STORE_MESSAGES);
       messageStore.put(storedMessage);
 
-      // 更新对话
       const convStore = tx.objectStore(STORE_CONVERSATIONS);
       const getRequest = convStore.get(conversationId);
 
@@ -131,7 +129,7 @@ class ChatStorageService {
     });
   }
 
-  // 获取所有对话
+  // Get all conversations
   async getConversations(): Promise<Conversation[]> {
     const db = this.ensureDB();
 
@@ -157,7 +155,7 @@ class ChatStorageService {
     });
   }
 
-  // 获取对话的所有消息
+  // Get messages for a conversation
   async getMessages(conversationId: string): Promise<Message[]> {
     const db = this.ensureDB();
 
@@ -178,7 +176,7 @@ class ChatStorageService {
     });
   }
 
-  // 删除对话
+  // Delete conversation
   async deleteConversation(conversationId: string): Promise<void> {
     const db = this.ensureDB();
 
@@ -188,11 +186,9 @@ class ChatStorageService {
         "readwrite"
       );
 
-      // 删除对话
       const convStore = tx.objectStore(STORE_CONVERSATIONS);
       convStore.delete(conversationId);
 
-      // 删除所有消息
       const messageStore = tx.objectStore(STORE_MESSAGES);
       const index = messageStore.index("conversationId");
       const request = index.openCursor(IDBKeyRange.only(conversationId));
@@ -210,7 +206,7 @@ class ChatStorageService {
     });
   }
 
-  // 清空所有数据
+  // Clear all data
   async clearAll(): Promise<void> {
     const db = this.ensureDB();
 

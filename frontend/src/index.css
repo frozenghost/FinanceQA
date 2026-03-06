@@ -116,7 +116,7 @@ body {
   animation-delay: 0.4s;
 }
 
-/* KaTeX 数学公式深色主题样式 */
+/* KaTeX math dark theme */
 .katex {
   color: #e2e8f0 !important;
   font-size: 1.05em;
@@ -143,14 +143,14 @@ body {
   color: #e2e8f0 !important;
 }
 
-/* 行内公式 */
+/* Display math */
 .katex-display {
   margin: 1em 0;
   overflow-x: auto;
   overflow-y: hidden;
 }
 
-/* 公式滚动条 */
+/* Formula scrollbar */
 .katex-display::-webkit-scrollbar {
   height: 4px;
 }
