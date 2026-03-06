@@ -73,12 +73,14 @@ def _merge_articles(
         if not _is_valid_article_url(url) or url in seen_urls:
             continue
         seen_urls.add(url)
+        title = a.get("title", "") or "Link"
         content = serpapi_url_to_content.get(url) or a.get("description", "")
         merged.append({
-            "title": a.get("title", ""),
+            "title": title,
             "source": a.get("source", ""),
             "published_at": a.get("published_at", ""),
             "url": url,
+            "link": f"[{title}]({url})",
             "content": content,
             "data_source": "news",
         })
@@ -88,11 +90,13 @@ def _merge_articles(
         if not _is_valid_article_url(url) or url in seen_urls:
             continue
         seen_urls.add(url)
+        title = r.get("title", "") or "Link"
         merged.append({
-            "title": r.get("title", ""),
+            "title": title,
             "source": r.get("source", "") or "news",
             "published_at": "",
             "url": url,
+            "link": f"[{title}]({url})",
             "content": r.get("content", ""),
             "data_source": "news",
         })
@@ -105,9 +109,9 @@ def _merge_articles(
 async def get_financial_news(query: str, page_size: int = 10) -> dict:
     """
     Get latest financial news related to the query.
-    Uses SerpAPI Google News and Tavily: SerpAPI results are enriched with full article
-    content via Tavily extract; Tavily also searches for related news. Results are merged
-    for the LLM (title, source, url, content).
+    Returns articles with title, source, url, content, and a ready-made Markdown link per
+    article (field "link"). When presenting news in your answer, you must include the
+    "link" for every article so users get a clickable link for each item.
     - query: Search keywords, e.g. company name, industry, event.
     - page_size: Number of news items to return, default 10.
     """

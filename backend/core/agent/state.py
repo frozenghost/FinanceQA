@@ -20,3 +20,4 @@ class AgentState(MessagesState):
     coordinator_markdown: str = ""
     executed_tools: list[str] = []
     validation_failed: bool = False
+    tool_remind_count: int = 0

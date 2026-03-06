@@ -10,6 +10,8 @@ Architecture:
 
 import logging
 from typing import Literal
+
+MAX_TOOL_REMIND = 2
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langgraph.types import RetryPolicy
@@ -81,13 +83,24 @@ async def agent_node(state: AgentState) -> dict:
     return {"messages": [response]}
 
 
+def _executed_tool_names_from_messages(messages: list) -> set:
+    """Get set of tool names that have been requested (from AIMessage.tool_calls)."""
+    seen = set()
+    for msg in messages:
+        if isinstance(msg, AIMessage) and getattr(msg, "tool_calls", None):
+            for tc in msg.tool_calls:
+                name = tc.get("name", "") or ""
+                if name:
+                    seen.add(name)
+    return seen
+
+
 def track_executed_tools(state: AgentState) -> dict:
     """Track executed tools"""
     messages = state["messages"]
     executed_tools = []
     seen = set()
-    
-    # Iterate through all messages, collect executed tools (deduplicated, keeping params)
+
     for msg in messages:
         if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls") and msg.tool_calls:
             for tool_call in msg.tool_calls:
@@ -100,8 +113,7 @@ def track_executed_tools(state: AgentState) -> dict:
                             "params": tool_call.get("args", {}) or {},
                         }
                     )
-    
-    # Compare plan vs actual execution
+
     tool_plan = state.get("tool_plan", [])
     if tool_plan:
         planned_tools = [t["tool"] for t in tool_plan]
@@ -112,7 +124,7 @@ def track_executed_tools(state: AgentState) -> dict:
 
         missing = set(planned_tools) - set(executed_names)
         extra = set(executed_names) - set(planned_tools)
-        
+
         if missing:
             logger.warning(f"  Missing: {', '.join(missing)}")
         if extra:
@@ -123,19 +135,47 @@ def track_executed_tools(state: AgentState) -> dict:
     return {"executed_tools": executed_tools}
 
 
-def should_continue(state: AgentState) -> Literal["tools", "end"]:
+def should_continue(state: AgentState) -> Literal["tools", "remind_missing", "end"]:
     """
-    Decide next step:
-    - If there are tool calls → execute tools
-    - Otherwise → end
+    - If last message has tool_calls → execute tools.
+    - If no tool_calls but planned tools are missing → remind and re-enter agent (cap at MAX_TOOL_REMIND).
+    - Else → end.
     """
     messages = state["messages"]
     last_message = messages[-1]
-    
+
     if isinstance(last_message, AIMessage) and last_message.tool_calls:
         return "tools"
-    
+
+    tool_plan = state.get("tool_plan", []) or []
+    if not tool_plan:
+        return "end"
+
+    executed = _executed_tool_names_from_messages(messages)
+    planned = {t.get("tool", "") for t in tool_plan if t.get("tool")}
+    missing = planned - executed
+    remind_count = state.get("tool_remind_count", 0)
+
+    if missing and remind_count < MAX_TOOL_REMIND:
+        logger.info(f"[should_continue] Planned tools not all executed; reminding for: {', '.join(sorted(missing))}")
+        return "remind_missing"
     return "end"
+
+
+def remind_missing_tools(state: AgentState) -> dict:
+    """Append a system message listing planned-but-not-executed tools and bump remind count."""
+    messages = state["messages"]
+    tool_plan = state.get("tool_plan", []) or []
+    executed = _executed_tool_names_from_messages(messages)
+    planned_names = [t.get("tool", "") for t in tool_plan if t.get("tool")]
+    missing = sorted(set(planned_names) - executed)
+    count = state.get("tool_remind_count", 0) + 1
+
+    reminder = (
+        f"⚠️ You have not yet called these tools from the plan: **{', '.join(missing)}**. "
+        "You must call them now before giving a final answer. Do not answer until all planned tools are called."
+    )
+    return {"messages": [SystemMessage(content=reminder)], "tool_remind_count": count}
 
 
 def build_agent_with_coordinator():
@@ -159,9 +199,10 @@ def build_agent_with_coordinator():
     )
     workflow.add_node("tracker", track_executed_tools)
     workflow.add_node("validator", validate_tool_execution)
-    
+    workflow.add_node("remind_missing", remind_missing_tools)
+
     workflow.set_entry_point("coordinator")
-    
+
     workflow.add_conditional_edges(
         "coordinator",
         should_use_tools,
@@ -170,19 +211,21 @@ def build_agent_with_coordinator():
             "direct_answer": "agent",
         }
     )
-    
+
     workflow.add_edge("enforcer", "agent")
-    
+
     workflow.add_conditional_edges(
         "agent",
         should_continue,
         {
             "tools": "tools",
+            "remind_missing": "remind_missing",
             "end": "tracker",
         }
     )
-    
+
     workflow.add_edge("tools", "agent")
+    workflow.add_edge("remind_missing", "agent")
     
     workflow.add_edge("tracker", "validator")
     workflow.add_edge("validator", END)
