@@ -49,7 +49,6 @@ class KnowledgeManager:
         
         self.config_path = Path(config_path)
         self.config = self._load_config()
-        self.splitter = self._create_splitter()
 
     def _load_config(self) -> dict[str, Any]:
         """Load configuration from JSON file."""
@@ -62,14 +61,18 @@ class KnowledgeManager:
         logger.info(f"Loaded knowledge sources config from {self.config_path}")
         return config
 
-    def _create_splitter(self) -> RecursiveCharacterTextSplitter:
-        """Create text splitter from config."""
-        chunking_config = self.config.get("chunking", {})
-        
+    def _create_splitter(self, source_name: str | None) -> RecursiveCharacterTextSplitter:
+        """Create text splitter from config; use by_source[source_name] if present else global chunking."""
+        chunking = self.config.get("chunking", {})
+        base = dict(chunking)
+        base.pop("by_source", None)
+        overrides = (chunking.get("by_source") or {}).get(source_name or "") if source_name else {}
+        overrides = overrides if isinstance(overrides, dict) else {}
+        merged = {**base, **overrides}
         return RecursiveCharacterTextSplitter(
-            chunk_size=chunking_config.get("chunk_size", 1024),
-            chunk_overlap=chunking_config.get("chunk_overlap", 128),
-            separators=chunking_config.get("separators", ["\n\n", "\n", ".", " "]),
+            chunk_size=merged.get("chunk_size", 1024),
+            chunk_overlap=merged.get("chunk_overlap", 128),
+            separators=merged.get("separators", ["\n\n", "\n", ".", " "]),
             length_function=len,
             is_separator_regex=False,
         )
@@ -141,6 +144,8 @@ class KnowledgeManager:
         
         try:
             docs = fetcher.fetch()
+            for doc in docs:
+                doc.metadata["source_name"] = source_name
             logger.info(f"Fetched {len(docs)} documents from {source_name}")
             return source_name, docs
         except Exception as e:
@@ -208,27 +213,22 @@ class KnowledgeManager:
             return asyncio.run(self.fetch_all_documents_async())
 
     def chunk_documents(self, documents: list[Document]) -> list[Document]:
-        """Split documents into chunks with enhanced metadata.
-        
-        Args:
-            documents: List of documents to chunk
-            
-        Returns:
-            List of document chunks
-        """
+        """Split documents into chunks with per-source chunk_size/overlap and enhanced metadata."""
         chunks: list[Document] = []
-        
+        by_source: dict[str, list[Document]] = {}
         for doc in documents:
-            doc_chunks = self.splitter.split_documents([doc])
-            
-            # Add chunk metadata
-            for i, chunk in enumerate(doc_chunks):
-                chunk.metadata["chunk_index"] = i
-                chunk.metadata["total_chunks"] = len(doc_chunks)
-                chunk.metadata["parent_doc_id"] = hash(doc.page_content)
-            
-            chunks.extend(doc_chunks)
-        
+            key = doc.metadata.get("source_name") or "_default"
+            by_source.setdefault(key, []).append(doc)
+
+        for source_name, docs in by_source.items():
+            splitter = self._create_splitter(source_name if source_name != "_default" else None)
+            for doc in docs:
+                doc_chunks = splitter.split_documents([doc])
+                for i, chunk in enumerate(doc_chunks):
+                    chunk.metadata["chunk_index"] = i
+                    chunk.metadata["total_chunks"] = len(doc_chunks)
+                    chunk.metadata["parent_doc_id"] = hash(doc.page_content)
+                chunks.extend(doc_chunks)
         return chunks
 
     def refresh_knowledge_base(self) -> dict[str, int]:

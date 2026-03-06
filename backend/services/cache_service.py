@@ -33,6 +33,11 @@ except Exception:
     REDIS_AVAILABLE = False
 
 
+def get_redis():
+    """Return the shared Redis client for use by other modules (e.g. embedding cache)."""
+    return _r
+
+
 def cached(key_prefix: str, ttl: int):
     """
     Universal cache decorator supporting both sync and async functions.

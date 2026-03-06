@@ -1,6 +1,8 @@
 """News and sentiment skill — financial news and market sentiment analysis."""
 
+import asyncio
 import logging
+from typing import Any
 
 import httpx
 from langchain_core.tools import tool
@@ -11,12 +13,42 @@ from services.cache_service import cached
 
 logger = logging.getLogger(__name__)
 
+# Max URLs to send to Tavily extract (API limit and latency)
+EXTRACT_URLS_LIMIT = 5
+
+# Placeholder or invalid URL strings from APIs (case-insensitive)
+INVALID_URL_PHRASES = ("link not provided", "url not provided", "n/a", "")
+
+
+def _is_valid_article_url(url: str) -> bool:
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip().lower()
+    if not u.startswith(("http://", "https://")):
+        return False
+    return not any(phrase in u for phrase in INVALID_URL_PHRASES if phrase)
+
+
+def _run_tavily_extract(urls: list[str], query: str = "") -> dict[str, Any]:
+    from tavily import TavilyClient
+    client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+    kwargs = {"urls": urls[:EXTRACT_URLS_LIMIT], "format": "text"}
+    if query:
+        kwargs["query"] = query
+    return client.extract(**kwargs)
+
+
+def _run_tavily_search(query: str, max_results: int) -> dict[str, Any]:
+    from tavily import TavilyClient
+    client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+    return client.search(query, max_results=max_results)
+
 
 class GetFinancialNewsInput(BaseModel):
     """Schema for get_financial_news."""
 
     query: str = Field(description="Search keywords: company name, industry, event, etc.")
-    page_size: int = Field(default=5, ge=1, le=20, description="Number of news items to return")
+    page_size: int = Field(default=10, ge=1, le=20, description="Number of news items to return")
 
     @field_validator("query")
     @classmethod
@@ -27,56 +59,159 @@ class GetFinancialNewsInput(BaseModel):
         return t
 
 
+def _merge_articles(
+    serpapi_articles: list[dict],
+    serpapi_url_to_content: dict[str, str],
+    tavily_results: list[dict],
+) -> list[dict]:
+    """Merge SerpAPI (with optional full content) and Tavily results into one list for LLM."""
+    merged = []
+    seen_urls: set[str] = set()
+
+    for a in serpapi_articles:
+        url = (a.get("url") or "").strip()
+        if not _is_valid_article_url(url) or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        content = serpapi_url_to_content.get(url) or a.get("description", "")
+        merged.append({
+            "title": a.get("title", ""),
+            "source": a.get("source", ""),
+            "published_at": a.get("published_at", ""),
+            "url": url,
+            "content": content,
+            "data_source": "news",
+        })
+
+    for r in tavily_results:
+        url = (r.get("url") or "").strip()
+        if not _is_valid_article_url(url) or url in seen_urls:
+            continue
+        seen_urls.add(url)
+        merged.append({
+            "title": r.get("title", ""),
+            "source": r.get("source", "") or "news",
+            "published_at": "",
+            "url": url,
+            "content": r.get("content", ""),
+            "data_source": "news",
+        })
+
+    return merged
+
+
 @tool(args_schema=GetFinancialNewsInput)
 @cached(key_prefix="news", ttl=1800)
-async def get_financial_news(query: str, page_size: int = 5) -> dict:
+async def get_financial_news(query: str, page_size: int = 10) -> dict:
     """
     Get latest financial news related to the query.
-    - query: Search keywords, such as company name, industry, event, etc.
-    - page_size: Number of news items to return, default 5
-    Returns news title, source, publication time, summary, and link.
-    Suitable for understanding latest market dynamics, company news, industry events, etc.
+    Uses SerpAPI Google News and Tavily: SerpAPI results are enriched with full article
+    content via Tavily extract; Tavily also searches for related news. Results are merged
+    for the LLM (title, source, url, content).
+    - query: Search keywords, e.g. company name, industry, event.
+    - page_size: Number of news items to return, default 10.
     """
-    if not settings.SERPAPI_KEY:
-        return {"error": "SerpAPI key not configured, cannot fetch news"}
+    logger.info("get_financial_news called: query=%r, page_size=%s", query, page_size)
+    if not settings.SERPAPI_KEY and not settings.TAVILY_API_KEY:
+        logger.warning("Neither SerpAPI nor Tavily key configured")
+        return {"error": "Neither SerpAPI nor Tavily key configured; cannot fetch news"}
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            params = {
-                "engine": "google_news",
-                "q": query,
-                "api_key": settings.SERPAPI_KEY,
-                "num": page_size,
-                "gl": "us",
-                "hl": "en",
-            }
-            
-            response = await client.get(
-                "https://serpapi.com/search",
-                params=params
+    loop = asyncio.get_event_loop()
+    serpapi_articles: list[dict] = []
+    serpapi_url_to_content: dict[str, str] = {}
+    tavily_results: list[dict] = []
+
+    if settings.SERPAPI_KEY:
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                params = {
+                    "engine": "google_news",
+                    "q": query,
+                    "api_key": settings.SERPAPI_KEY,
+                    "num": page_size,
+                    "gl": "us",
+                    "hl": "en",
+                }
+                response = await client.get("https://serpapi.com/search", params=params)
+                response.raise_for_status()
+                data = response.json()
+
+            raw_list = data.get("news_results", [])[:page_size]
+            logger.info("SerpAPI Google News returned %d raw items", len(raw_list))
+            for item in raw_list:
+                link = (item.get("link") or "").strip()
+                if not _is_valid_article_url(link):
+                    continue
+                source_val = item.get("source")
+                source_name = (
+                    source_val.get("name", "") if isinstance(source_val, dict) else (source_val or "")
+                )
+                serpapi_articles.append({
+                    "title": item.get("title", ""),
+                    "source": source_name,
+                    "published_at": item.get("date", ""),
+                    "description": item.get("snippet", ""),
+                    "url": link,
+                })
+        except Exception as e:
+            logger.error(f"SerpAPI request failed: {e}")
+            # Continue with Tavily-only if available
+
+    if settings.TAVILY_API_KEY:
+        # Enrich SerpAPI URLs with Tavily extract
+        urls_to_extract = [a["url"] for a in serpapi_articles if a.get("url")][:EXTRACT_URLS_LIMIT]
+        if urls_to_extract:
+            try:
+                extract_res = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda: _run_tavily_extract(urls_to_extract, query),
+                    ),
+                    timeout=30.0,
+                )
+                for res in extract_res.get("results", []):
+                    url = res.get("url", "")
+                    raw = res.get("raw_content", "") or res.get("content", "")
+                    if url and raw:
+                        serpapi_url_to_content[url] = raw
+                logger.info("Tavily extract enriched %d URLs", len(serpapi_url_to_content))
+            except asyncio.TimeoutError:
+                logger.warning("Tavily extract timed out")
+            except Exception as e:
+                logger.warning(f"Tavily extract failed: {e}")
+
+        # Tavily search for related news
+        try:
+            search_res = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: _run_tavily_search(query, max_results=page_size),
+                ),
+                timeout=15.0,
             )
-            response.raise_for_status()
-            data = response.json()
+            for r in search_res.get("results", []):
+                tavily_results.append({
+                    "title": r.get("title", ""),
+                    "content": r.get("content", ""),
+                    "url": r.get("url", ""),
+                    "source": r.get("source", "Tavily"),
+                })
+            logger.info("Tavily search returned %d results", len(tavily_results))
+        except asyncio.TimeoutError:
+            logger.warning("Tavily search timed out")
+        except Exception as e:
+            logger.warning(f"Tavily search failed: {e}")
 
-        articles = []
-        news_results = data.get("news_results", [])
-        
-        for item in news_results[:page_size]:
-            articles.append({
-                "title": item.get("title", ""),
-                "source": item.get("source", {}).get("name", "") if isinstance(item.get("source"), dict) else item.get("source", ""),
-                "published_at": item.get("date", ""),
-                "description": item.get("snippet", ""),
-                "url": item.get("link", ""),
-            })
+    articles = _merge_articles(serpapi_articles, serpapi_url_to_content, tavily_results)
+    data_sources = ["news"] if articles else []
 
-        return {
-            "query": query,
-            "total_results": len(news_results),
-            "articles": articles,
-            "data_source": "SerpAPI Google News",
-        }
-    
-    except Exception as e:
-        logger.error(f"SerpAPI request failed: {e}")
-        return {"error": f"Failed to fetch news: {str(e)}"}
+    logger.info(
+        "get_financial_news done: query=%r, total_articles=%d, sources=%s",
+        query, len(articles), data_sources,
+    )
+    return {
+        "query": query,
+        "articles": articles,
+        "total_results": len(articles),
+        "data_sources": data_sources,
+    }

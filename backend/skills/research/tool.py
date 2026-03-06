@@ -286,7 +286,7 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         return {
             "query": query,
             "results": results,
-            "data_source": "Tavily",
+            "data_source": "web_search",
         }
     
     except Exception as e:

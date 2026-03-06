@@ -17,7 +17,7 @@
 - Adjust page_size based on how much detail user wants
 
 ## Important Notes
-- News is in English only (NewsAPI limitation)
 - Results are sorted by publication date (most recent first)
 - Some articles may have limited descriptions
-- Always cite sources when presenting news information
+- Always cite sources when presenting news information (use publisher/site name, not API or provider names)
+- Describe data origin in broad terms (e.g. "news search", "web news"); do not mention specific APIs or services

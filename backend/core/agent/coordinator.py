@@ -9,6 +9,7 @@ Core ideas:
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Literal
 
@@ -166,6 +167,15 @@ def _get_coordinator_chain():
 
 # Runnable used as coordinator node; streaming is visible in astream_events
 coordinator_chain = _get_coordinator_chain()
+
+
+async def coordinator_node(state: dict) -> dict:
+    """Coordinator node with timing log."""
+    start = time.perf_counter()
+    result = await coordinator_chain.ainvoke(state)
+    elapsed = time.perf_counter() - start
+    logger.info("Coordinator elapsed: %.3fs", elapsed)
+    return result
 
 
 async def coordinate_tools(state: dict) -> dict:

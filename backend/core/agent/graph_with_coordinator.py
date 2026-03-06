@@ -18,7 +18,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 
 from core.agent.state import AgentState
 from core.agent.coordinator import (
-    coordinator_chain,
+    coordinator_node,
     should_use_tools,
     enforce_tool_usage,
     validate_tool_execution,
@@ -149,7 +149,7 @@ def build_agent_with_coordinator():
     
     workflow = StateGraph(AgentState)
     
-    workflow.add_node("coordinator", coordinator_chain)
+    workflow.add_node("coordinator", coordinator_node)
     workflow.add_node("enforcer", enforce_tool_usage)
     workflow.add_node("agent", agent_node)
     workflow.add_node(

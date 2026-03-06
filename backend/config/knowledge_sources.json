@@ -87,7 +87,11 @@
   "chunking": {
     "chunk_size": 2000,
     "chunk_overlap": 400,
-    "separators": ["\n\n", "\n", "。", "！", "？", "；", ";", ". ", " ", ""]
+    "separators": ["\n\n", "\n", "。", "！", "？", "；", ";", ". ", " ", ""],
+    "by_source": {
+      "company_earnings": { "chunk_size": 512, "chunk_overlap": 64 },
+      "web_search_results": { "chunk_size": 1000, "chunk_overlap": 150 }
+    }
   },
   "vectordb": {
     "collection_name": "finance_knowledge",

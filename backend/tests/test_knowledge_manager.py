@@ -61,7 +61,6 @@ def test_knowledge_manager_init(mock_config):
     manager = KnowledgeManager(mock_config)
     assert manager.config is not None
     assert len(manager.config["sources"]) == 3
-    assert manager.splitter is not None
 
 
 def test_create_fetcher(mock_config):
