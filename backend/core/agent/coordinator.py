@@ -43,7 +43,7 @@ def get_time_context() -> str:
     
     time_info += (
         "\n**Important**: When the user asks about \"latest\" or \"recent\" data, "
-        "you must base your answer on the actual times above, not on the model’s training cutoff.\n"
+        "you must base your answer on the actual times above, not on the model's training cutoff.\n"
     )
     return time_info
 

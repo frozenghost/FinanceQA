@@ -25,10 +25,13 @@
       "fetcher": "WikipediaFetcher",
       "config": {
         "queries": [
+          "市盈率",
           "P/E ratio",
+          "相对估值",
           "return on equity",
+          "现金流",
           "free cash flow",
-          "price-to-book ratio",
+          "市净率",
           "Price–earnings ratio",
           "EBITDA"
         ],

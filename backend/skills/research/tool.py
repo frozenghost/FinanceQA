@@ -99,7 +99,7 @@ def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[tuple[int,
             return_tensors="np",
         )
 
-        ort_inputs = {k: v for k, v in inputs.items() if k in ("input_ids", "attention_mask", "token_type_ids")}
+        ort_inputs = {k: v.astype(np.int64) if v.dtype == np.int32 else v for k, v in inputs.items() if k in ("input_ids", "attention_mask", "token_type_ids")}
         outputs = session.run(None, ort_inputs)
 
         scores = outputs[0]
@@ -126,6 +126,8 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     Use for financial concepts, indicator definitions, industry knowledge.
     If no relevant content is found, tell the user clearly; do not fabricate answers.
     """
+    logger.info(f"[search_knowledge_base] Query: '{query}', top_k: {top_k}")
+    
     try:
         import asyncio
         loop = asyncio.get_event_loop()
@@ -144,12 +146,17 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
             }
             for doc, score in vector_results_with_scores
         ]
+        
+        logger.info(f"[search_knowledge_base] Vector search returned {len(vector_docs)} candidates")
+        if vector_docs:
+            logger.debug(f"[search_knowledge_base] Vector scores: {[round(d['vector_score'], 4) for d in vector_docs[:3]]}")
 
         # 2. BM25 keyword search
         bm25_docs = []
         if vector_docs:
             try:
                 bm25_docs = _bm25_search(query, vector_docs, top_k=top_k * 2)
+                logger.info(f"[search_knowledge_base] BM25 search returned {len(bm25_docs)} candidates")
             except Exception as e:
                 logger.warning(f"BM25 retrieval failed: {e}")
 
@@ -163,7 +170,10 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
                 seen.add(content_hash)
                 merged.append(doc)
 
+        logger.info(f"[search_knowledge_base] After merge/dedup: {len(merged)} unique candidates")
+
         if not merged:
+            logger.warning(f"[search_knowledge_base] No results found for query: '{query}'")
             return {
                 "query": query,
                 "results": [],
@@ -173,6 +183,8 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
         # 4. Rerank with BGE
         texts = [doc["page_content"] for doc in merged]
         ranked_results = _rerank(query, texts, top_n=top_k)
+        
+        logger.info(f"[search_knowledge_base] Reranked top-{len(ranked_results)} results")
 
         results = []
         for idx, rerank_score in ranked_results:
@@ -184,6 +196,10 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
                     "type": doc["metadata"].get("type", "unknown"),
                     "relevance_score": rerank_score,
                 })
+
+        # Log top-k results for debugging
+        for i, r in enumerate(results):
+            logger.info(f"[search_knowledge_base] Top-{i+1}: source={r['source']}, type={r['type']}, score={r['relevance_score']:.4f}, content_preview={r['content'][:100]}...")
 
         return {
             "query": query,
