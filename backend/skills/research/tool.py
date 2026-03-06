@@ -112,19 +112,19 @@ def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[tuple[int,
         return scored_indices[:top_n]
 
     except Exception as e:
-        logger.warning(f"BGE rerank 失败，回退到原始排序: {e}")
+        logger.warning(f"BGE rerank failed, falling back to original order: {e}")
         return [(i, 0.0) for i in range(min(top_n, len(documents)))]
 
 
 @tool
 async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     """
-    在金融知识库中搜索相关信息（混合检索：向量+BM25+重排序）。
-    - query: 搜索问题，如 "什么是市盈率"、"ROE如何计算"
-    - top_k: 返回结果数量，默认 5
-    返回最相关的知识库文档片段，包含内容、来源和相关性评分。
-    适用于金融概念解释、指标定义、行业知识等场景。
-    如果知识库中没有相关内容，请明确告知用户，不要编造答案。
+    Search the financial knowledge base (hybrid: vector + BM25 + rerank).
+    - query: Search question, e.g. "What is P/E ratio", "How to compute ROE"
+    - top_k: Number of results to return, default 5
+    Returns the most relevant document snippets with content, source and relevance score.
+    Use for financial concepts, indicator definitions, industry knowledge.
+    If no relevant content is found, tell the user clearly; do not fabricate answers.
     """
     try:
         import asyncio
@@ -151,7 +151,7 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
             try:
                 bm25_docs = _bm25_search(query, vector_docs, top_k=top_k * 2)
             except Exception as e:
-                logger.warning(f"BM25 检索失败: {e}")
+                logger.warning(f"BM25 retrieval failed: {e}")
 
         # 3. Merge and deduplicate
         seen = set()
@@ -167,7 +167,7 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
             return {
                 "query": query,
                 "results": [],
-                "message": "知识库中未找到相关内容，建议使用 search_web 工具搜索最新信息",
+                "message": "No relevant content found in knowledge base; consider using search_web for up-to-date information",
             }
 
         # 4. Rerank with BGE
@@ -193,11 +193,11 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
         }
 
     except Exception as e:
-        logger.error(f"知识库检索失败: {e}")
+        logger.error(f"Knowledge base retrieval failed: {e}")
         return {
             "query": query,
             "results": [],
-            "error": f"检索失败: {str(e)}",
+            "error": f"Retrieval failed: {str(e)}",
         }
 
 
@@ -205,14 +205,14 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
 @cached(key_prefix="web", ttl=900)
 async def search_web(query: str, max_results: int = 5) -> dict:
     """
-    使用 Tavily 搜索引擎进行实时网络搜索。
-    - query: 搜索关键词
-    - max_results: 返回结果数量，默认 5
-    返回最新的网络搜索结果，包含标题、内容摘要和来源链接。
-    适用于获取最新资讯、实时事件、最新公告等知识库中没有的信息。
+    Real-time web search via Tavily.
+    - query: Search keywords
+    - max_results: Number of results, default 5
+    Returns latest web results with title, snippet and URL.
+    Use for news, real-time events, announcements not in the knowledge base.
     """
     if not settings.TAVILY_API_KEY:
-        return {"error": "Tavily API key 未配置，无法进行网络搜索"}
+        return {"error": "Tavily API key not configured; web search unavailable"}
 
     try:
         import asyncio
@@ -221,7 +221,7 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         loop = asyncio.get_event_loop()
         tavily = TavilyClient(api_key=settings.TAVILY_API_KEY)
         
-        # 添加超时控制
+        # Timeout control
         response = await asyncio.wait_for(
             loop.run_in_executor(None, lambda: tavily.search(query, max_results=max_results)),
             timeout=15.0
@@ -243,5 +243,5 @@ async def search_web(query: str, max_results: int = 5) -> dict:
         }
     
     except Exception as e:
-        logger.error(f"Tavily 搜索失败: {e}")
-        return {"error": f"网络搜索失败: {str(e)}"}
+        logger.error(f"Tavily search failed: {e}")
+        return {"error": f"Web search failed: {str(e)}"}

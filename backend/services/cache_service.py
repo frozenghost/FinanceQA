@@ -26,9 +26,9 @@ try:
     )
     _r.ping()
     REDIS_AVAILABLE = True
-    logger.info("Redis 连接成功")
+    logger.info("Redis connected")
 except Exception:
-    logger.warning("Redis 不可用，缓存层已降级为直连模式")
+    logger.warning("Redis unavailable; cache layer degraded to direct mode")
     _r = None  # type: ignore[assignment]
     REDIS_AVAILABLE = False
 

@@ -49,11 +49,11 @@ def _load_prompt(name: str) -> str:
 
 # ── Evaluation dimensions and their weights ────────────────────
 DIMENSIONS = {
-    "accuracy": {"weight": 0.30, "description": "事实准确性，数据是否正确"},
-    "completeness": {"weight": 0.25, "description": "回答是否覆盖了问题的关键要点"},
-    "relevance": {"weight": 0.20, "description": "回答与问题的相关程度"},
-    "reasoning": {"weight": 0.15, "description": "分析推理的逻辑性与深度"},
-    "language_quality": {"weight": 0.10, "description": "语言表达的流畅性、专业性与可读性"},
+    "accuracy": {"weight": 0.30, "description": "Factual accuracy; data and facts correct"},
+    "completeness": {"weight": 0.25, "description": "Covers key points of the question"},
+    "relevance": {"weight": 0.20, "description": "Relevance to the question"},
+    "reasoning": {"weight": 0.15, "description": "Logic and depth of analysis"},
+    "language_quality": {"weight": 0.10, "description": "Clarity, professionalism, readability"},
 }
 
 
@@ -102,18 +102,18 @@ class ModelEvaluator:
         self, question: str, reference: str, answer: str, keywords: list[str]
     ) -> dict:
         """Use judge model to score an answer."""
-        judge_prompt = f"""请评估以下 AI 模型的回答质量。
+        judge_prompt = f"""Evaluate the quality of the following AI model answer.
 
-**问题**：{question}
+**Question**: {question}
 
-**参考答案要点**：{reference}
+**Reference key points**: {reference}
 
-**期望包含的关键词**：{', '.join(keywords)}
+**Expected keywords**: {', '.join(keywords)}
 
-**模型实际回答**：
+**Model answer**:
 {answer}
 
-请严格按照 JSON 格式给出评分。"""
+Output scores in strict JSON format."""
 
         try:
             response = await self.client.chat.completions.create(
@@ -133,7 +133,7 @@ class ModelEvaluator:
                 content = content.split("\n", 1)[1]  # Remove first ```json line
                 content = content.rsplit("```", 1)[0]  # Remove trailing ```
 
-            # 使用 json_repair.loads 解析裁判模型返回的 JSON，容错轻微格式错误
+            # Parse judge JSON with json_repair for minor format errors
             result = json_repair.loads(content)
 
             # Calculate keyword coverage
@@ -149,9 +149,9 @@ class ModelEvaluator:
             logger.error(f"Judge model scoring failed: {e}")
             return {
                 "scores": {dim: 0 for dim in DIMENSIONS},
-                "strengths": "评分失败",
+                "strengths": "Scoring failed",
                 "weaknesses": str(e),
-                "overall_comment": "裁判模型评分出错",
+                "overall_comment": "Judge model scoring error",
                 "keyword_coverage": 0.0,
             }
 
@@ -386,25 +386,25 @@ class ModelEvaluator:
         diff = round(best["overall_score"] - worst["overall_score"], 2)
 
         if diff < 0.3:
-            verdict_quality = "两个模型表现基本相当"
+            verdict_quality = "Both models perform similarly"
         elif diff < 1.0:
-            verdict_quality = f"{best['model']} 略优于 {worst['model']}"
+            verdict_quality = f"{best['model']} slightly better than {worst['model']}"
         elif diff < 2.0:
-            verdict_quality = f"{best['model']} 明显优于 {worst['model']}"
+            verdict_quality = f"{best['model']} clearly better than {worst['model']}"
         else:
-            verdict_quality = f"{best['model']} 显著优于 {worst['model']}"
+            verdict_quality = f"{best['model']} significantly better than {worst['model']}"
 
         latency_diff = best["avg_latency"] - worst["avg_latency"]
         if abs(latency_diff) < 1.0:
-            verdict_speed = "响应速度相近"
+            verdict_speed = "Similar response speed"
         elif latency_diff > 0:
-            verdict_speed = f"但 {worst['model']} 响应更快（快 {abs(latency_diff):.1f}s）"
+            verdict_speed = f"but {worst['model']} is faster by {abs(latency_diff):.1f}s"
         else:
-            verdict_speed = f"且 {best['model']} 响应也更快（快 {abs(latency_diff):.1f}s）"
+            verdict_speed = f"and {best['model']} is also faster by {abs(latency_diff):.1f}s"
 
         comparison["verdict"] = (
-            f"综合评分：{verdict_quality}（{best['overall_score']} vs {worst['overall_score']}）。"
-            f"{verdict_speed}。"
+            f"Overall: {verdict_quality} ({best['overall_score']} vs {worst['overall_score']}). "
+            f"{verdict_speed}."
         )
 
         return comparison
@@ -433,58 +433,58 @@ class ModelEvaluator:
         summary = report["summary"]
 
         print("\n" + "=" * 60)
-        print(f"  模型评估报告")
+        print("  Model evaluation report")
         print("=" * 60)
-        print(f"  模型：{meta['model']}")
-        print(f"  裁判模型：{meta['judge_model']}")
-        print(f"  评估时间：{meta['evaluated_at']}")
-        print(f"  测试用例数：{meta['total_test_cases']}")
+        print(f"  Model: {meta['model']}")
+        print(f"  Judge: {meta['judge_model']}")
+        print(f"  Evaluated at: {meta['evaluated_at']}")
+        print(f"  Test cases: {meta['total_test_cases']}")
         print("-" * 60)
-        print(f"  综合评分：{summary['overall_score']} / 10")
-        print(f"  平均延迟：{summary['avg_latency_seconds']}s")
-        print(f"  关键词覆盖率：{summary['avg_keyword_coverage']:.0%}")
+        print(f"  Overall score: {summary['overall_score']} / 10")
+        print(f"  Avg latency: {summary['avg_latency_seconds']}s")
+        print(f"  Keyword coverage: {summary['avg_keyword_coverage']:.0%}")
         print("-" * 60)
 
-        print("\n  各维度平均分：")
+        print("\n  Dimension averages:")
         for dim, score in report["dimension_averages"].items():
             bar = "█" * int(score) + "░" * (10 - int(score))
             print(f"    {dim:20s} {bar} {score}/10")
 
-        print("\n  各类别表现：")
+        print("\n  By category:")
         for cat, data in report["category_breakdown"].items():
-            print(f"    {cat:12s} {data['avg_score']}/10 ({data['count']} 题)")
+            print(f"    {cat:12s} {data['avg_score']}/10 ({data['count']} items)")
 
         print("=" * 60 + "\n")
 
     def print_comparison_summary(self, comparison: dict):
         """Print a human-readable comparison summary."""
         print("\n" + "=" * 60)
-        print(f"  模型对比报告")
+        print("  Model comparison report")
         print("=" * 60)
-        print(f"  对比时间：{comparison['meta']['compared_at']}")
+        print(f"  Compared at: {comparison['meta']['compared_at']}")
         print("-" * 60)
 
-        print("\n  总排名：")
+        print("\n  Ranking:")
         for entry in comparison["ranking"]:
             medal = ["🥇", "🥈", "🥉"][entry["rank"] - 1] if entry["rank"] <= 3 else "  "
             print(
                 f"    {medal} #{entry['rank']} {entry['model']:40s} "
-                f"分数: {entry['overall_score']}/10  延迟: {entry['avg_latency']}s"
+                f"score: {entry['overall_score']}/10  latency: {entry['avg_latency']}s"
             )
 
-        print("\n  各维度对比：")
+        print("\n  By dimension:")
         for dim, data in comparison["dimension_comparison"].items():
             print(f"    {dim}:")
             for model, score in data["scores"].items():
-                marker = " ← 最佳" if model == data["best"] else ""
+                marker = " ← best" if model == data["best"] else ""
                 print(f"      {model:40s} {score}/10{marker}")
 
         if "head_to_head_summary" in comparison:
-            print("\n  胜负统计：")
+            print("\n  Head-to-head:")
             for key, val in comparison["head_to_head_summary"].items():
                 print(f"    {key}: {val}")
 
-        print(f"\n  结论：{comparison['verdict']}")
+        print(f"\n  Verdict: {comparison['verdict']}")
         print("=" * 60 + "\n")
 
 
@@ -517,7 +517,7 @@ async def main():
         filepath = evaluator.save_report(report)
         evaluator.print_report_summary(report)
         reports.append(report)
-        print(f"  报告已保存: {filepath}\n")
+        print(f"  Report saved: {filepath}\n")
 
     # Load comparison baseline if specified
     if args.compare_with:
@@ -531,7 +531,7 @@ async def main():
         comparison = evaluator.generate_comparison(reports)
         comp_path = evaluator.save_comparison(comparison)
         evaluator.print_comparison_summary(comparison)
-        print(f"  对比报告已保存: {comp_path}\n")
+        print(f"  Comparison report saved: {comp_path}\n")
 
 
 if __name__ == "__main__":

@@ -1,76 +1,76 @@
 {
   "version": "1.0",
-  "description": "金融问答系统模型质量评估数据集",
+  "description": "Finance QA model evaluation dataset",
   "evaluation_dimensions": {
-    "accuracy": "回答的事实准确性，数据是否正确",
-    "completeness": "回答的完整程度，是否覆盖了问题的关键点",
-    "relevance": "回答与问题的相关程度，是否紧扣主题",
-    "reasoning": "分析推理的逻辑性与深度",
-    "language_quality": "语言表达的流畅性、专业性与可读性"
+    "accuracy": "Factual accuracy of the answer; correctness of data",
+    "completeness": "Whether key points of the question are covered",
+    "relevance": "Relevance to the question; staying on topic",
+    "reasoning": "Logic and depth of analysis",
+    "language_quality": "Clarity, professionalism, readability"
   },
   "test_cases": [
     {
       "id": "finance_concept_01",
-      "category": "金融概念",
-      "question": "什么是市盈率（P/E Ratio）？如何用它来评估一只股票是否被高估？",
-      "reference_answer": "市盈率是股票价格与每股收益（EPS）的比率，即 P/E = 股价 / EPS。它反映了投资者愿意为每一元利润支付多少价格。一般而言，P/E 越高可能意味着市场对未来增长预期较高，但也可能说明股价被高估。需要与同行业公司和历史平均水平对比判断。",
-      "expected_keywords": ["股价", "每股收益", "EPS", "比率", "高估", "行业对比"],
+      "category": "Finance concepts",
+      "question": "What is the P/E ratio? How can it be used to assess whether a stock is overvalued?",
+      "reference_answer": "P/E is the ratio of stock price to earnings per share (EPS), i.e. P/E = price / EPS. It reflects how much investors pay per unit of profit. A higher P/E may mean higher growth expectations or that the stock is overvalued; compare with peers and historical averages.",
+      "expected_keywords": ["price", "earnings per share", "EPS", "ratio", "overvalued", "peer comparison"],
       "difficulty": "easy"
     },
     {
       "id": "finance_concept_02",
-      "category": "金融概念",
-      "question": "请解释自由现金流（Free Cash Flow）的概念，以及它为什么对投资者很重要？",
-      "reference_answer": "自由现金流是公司经营活动产生的现金流减去资本支出后的剩余现金。FCF = 经营现金流 - 资本支出。它代表了公司在维持和扩展资产后可以自由使用的现金，可用于分红、回购股票或偿还债务。FCF 为正说明公司有良好的现金产生能力。",
-      "expected_keywords": ["经营现金流", "资本支出", "分红", "回购", "偿还债务"],
+      "category": "Finance concepts",
+      "question": "Explain free cash flow (FCF) and why it matters to investors.",
+      "reference_answer": "Free cash flow is operating cash flow minus capital expenditure. FCF represents cash available for dividends, buybacks, or debt repayment after maintaining and expanding the business. Positive FCF indicates strong cash generation.",
+      "expected_keywords": ["operating cash flow", "capital expenditure", "dividends", "buyback", "debt"],
       "difficulty": "easy"
     },
     {
       "id": "market_analysis_01",
-      "category": "行情分析",
-      "question": "分析阿里巴巴（BABA）近期的股价走势，结合技术指标给出投资建议。",
-      "reference_answer": "应包含：当前股价、近期涨跌幅、RSI 指标判断超买/超卖、MACD 趋势判断、均线支撑/阻力位分析，并给出综合判断。需注明数据来源和延迟情况。",
-      "expected_keywords": ["股价", "涨跌", "RSI", "MACD", "均线", "趋势"],
+      "category": "Market analysis",
+      "question": "Analyze Alibaba (BABA) recent price action and give investment views using technical indicators.",
+      "reference_answer": "Include current price, recent change, RSI for overbought/oversold, MACD for trend, support/resistance from moving averages, and a concise conclusion. State data source and any delay.",
+      "expected_keywords": ["price", "change", "RSI", "MACD", "moving average", "trend"],
       "difficulty": "medium"
     },
     {
       "id": "market_analysis_02",
-      "category": "行情分析",
-      "question": "特斯拉（TSLA）和苹果（AAPL）过去一个月的表现对比如何？",
-      "reference_answer": "应包含两只股票的价格变动、涨跌幅比较、成交量趋势以及可能影响股价的基本面因素（如财报、新品发布等）。",
-      "expected_keywords": ["TSLA", "AAPL", "涨跌幅", "对比", "价格"],
+      "category": "Market analysis",
+      "question": "Compare Tesla (TSLA) and Apple (AAPL) performance over the past month.",
+      "reference_answer": "Include price changes, percentage moves, volume trend, and fundamental drivers (e.g. earnings, product news) for both stocks.",
+      "expected_keywords": ["TSLA", "AAPL", "change", "comparison", "price"],
       "difficulty": "medium"
     },
     {
       "id": "financial_report_01",
-      "category": "财报解读",
-      "question": "阿里巴巴最新一季度的财报表现如何？核心财务数据有哪些亮点？",
-      "reference_answer": "应包含营收、净利润、EPS、用户增长、云业务收入等核心指标的最新数据，并分析同比/环比变化趋势和亮点或风险点。",
-      "expected_keywords": ["营收", "净利润", "EPS", "同比", "季度"],
+      "category": "Earnings",
+      "question": "How did Alibaba perform in its latest quarter? What are the main highlights in the key metrics?",
+      "reference_answer": "Include revenue, net income, EPS, user growth, cloud revenue, and YoY/QoQ trends plus notable strengths or risks.",
+      "expected_keywords": ["revenue", "net income", "EPS", "YoY", "quarter"],
       "difficulty": "hard"
     },
     {
       "id": "comprehensive_01",
-      "category": "综合分析",
-      "question": "从基本面和技术面两个角度，综合分析腾讯控股（TCEHY）当前的投资价值。",
-      "reference_answer": "基本面应涵盖 P/E、P/B、ROE、营收增速等指标；技术面应涵盖均线系统、RSI、MACD 等指标。最后给出风险提示和综合评价。",
-      "expected_keywords": ["P/E", "ROE", "营收", "RSI", "MACD", "风险"],
+      "category": "Comprehensive",
+      "question": "Assess Tencent (TCEHY) investment case from both fundamental and technical perspectives.",
+      "reference_answer": "Fundamentals: P/E, P/B, ROE, revenue growth. Technicals: moving averages, RSI, MACD. End with risk caveats and overall view.",
+      "expected_keywords": ["P/E", "ROE", "revenue", "RSI", "MACD", "risk"],
       "difficulty": "hard"
     },
     {
       "id": "news_analysis_01",
-      "category": "新闻分析",
-      "question": "最近有哪些重大财经新闻可能影响美股科技板块？",
-      "reference_answer": "应列出近期主要财经新闻事件，分析其对科技股的潜在影响，包括宏观政策、行业动态、公司事件等维度。",
-      "expected_keywords": ["科技股", "新闻", "影响", "市场"],
+      "category": "News",
+      "question": "What major financial news lately could affect US tech stocks?",
+      "reference_answer": "List recent major events and their potential impact on tech: policy, sector news, company-specific events.",
+      "expected_keywords": ["tech", "news", "impact", "market"],
       "difficulty": "medium"
     },
     {
       "id": "risk_management_01",
-      "category": "风险管理",
-      "question": "什么是系统性风险和非系统性风险？投资者如何通过分散投资降低风险？",
-      "reference_answer": "系统性风险是影响整个市场的风险（如利率变动、政治事件），不可通过分散投资消除。非系统性风险是特定公司或行业的风险，可通过投资组合多样化来降低。分散投资的核心是选择低相关性的资产类别。",
-      "expected_keywords": ["系统性风险", "非系统性风险", "分散投资", "投资组合", "相关性"],
+      "category": "Risk management",
+      "question": "What are systematic and unsystematic risk? How can diversification reduce risk?",
+      "reference_answer": "Systematic risk affects the whole market (e.g. rates, politics) and cannot be diversified away. Unsystematic risk is firm- or industry-specific and can be reduced by diversifying across assets with low correlation.",
+      "expected_keywords": ["systematic risk", "unsystematic risk", "diversification", "portfolio", "correlation"],
       "difficulty": "easy"
     }
   ]

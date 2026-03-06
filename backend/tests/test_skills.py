@@ -103,7 +103,7 @@ class TestResearchSkill:
         """Knowledge base search should return results structure."""
         from skills.research.tool import search_knowledge_base
 
-        result = search_knowledge_base.invoke({"query": "什么是市盈率", "top_k": 3})
+        result = search_knowledge_base.invoke({"query": "What is P/E ratio", "top_k": 3})
 
         assert isinstance(result, dict)
         assert "query" in result

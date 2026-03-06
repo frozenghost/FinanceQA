@@ -268,6 +268,7 @@ export function useSSEChat(
                       const prevMeta: Partial<MessageMetadata> = m.metadata ?? {};
                       const payload = (data.payload ?? {}) as {
                         type?: MessageMetadata["type"];
+                        steps?: unknown[];
                         [k: string]: unknown;
                       };
 
@@ -283,12 +284,18 @@ export function useSSEChat(
                         mergedType = "hybrid";
                       }
 
+                      // Only update steps if payload has them, preserve existing steps
+                      const mergedSteps = payload.steps !== undefined 
+                        ? payload.steps 
+                        : prevMeta.steps;
+
                       finalAssistantMsg = {
                         ...m,
                         metadata: {
                           ...prevMeta,
                           ...payload,
                           ...(mergedType ? { type: mergedType } : {}),
+                          steps: mergedSteps,
                         } as MessageMetadata,
                       };
                       return finalAssistantMsg;
@@ -316,14 +323,16 @@ export function useSSEChat(
           }
         }
 
-        // Persist full assistant message
-        if (convId && dbInitialized.current && finalAssistantMsg.content) {
-          try {
-            await chatStorage.saveMessage(convId, finalAssistantMsg);
-          } catch (error) {
-            console.error("Failed to save assistant message:", error);
+        // Persist full assistant message - get latest from messages state
+        setMessages((prev) => {
+          const assistantMsg = prev.find((m) => m.id === assistantId);
+          if (convId && dbInitialized.current && assistantMsg?.content) {
+            chatStorage.saveMessage(convId, assistantMsg).catch((error) => {
+              console.error("Failed to save assistant message:", error);
+            });
           }
-        }
+          return prev;
+        });
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setMessages((prev) =>

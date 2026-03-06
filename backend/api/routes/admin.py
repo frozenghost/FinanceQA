@@ -39,10 +39,10 @@ async def refresh_knowledge(
 
         return {
             "status": "started",
-            "message": "知识库刷新任务已启动，请查看后端日志了解进度",
+            "message": "Knowledge base refresh started; check backend logs for progress",
         }
     except Exception as e:
-        logger.error(f"刷新知识库失败: {e}")
+        logger.error(f"Knowledge base refresh failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -98,7 +98,7 @@ async def evaluate_models(
 
     return {
         "status": "started",
-        "message": f"模型评估任务已启动，正在评估 {len(request.models)} 个模型",
+        "message": f"Model evaluation started; evaluating {len(request.models)} model(s)",
         "models": request.models,
         "compare": request.compare,
         "reports_dir": settings.EVAL_REPORTS_DIR,

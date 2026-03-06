@@ -3,7 +3,7 @@
     {
       "tool": "search_knowledge_base",
       "input": {
-        "query": "什么是市盈率",
+        "query": "What is P/E ratio",
         "top_k": 3
       },
       "expected_fields": ["query", "results"]

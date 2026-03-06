@@ -25,10 +25,10 @@
       "fetcher": "WikipediaFetcher",
       "config": {
         "queries": [
-          "市盈率",
-          "净资产收益率",
-          "自由现金流",
-          "市净率",
+          "P/E ratio",
+          "return on equity",
+          "free cash flow",
+          "price-to-book ratio",
           "Price–earnings ratio",
           "EBITDA"
         ],
@@ -60,9 +60,9 @@
       "fetcher": "TavilyFetcher",
       "config": {
         "queries": [
-          "阿里巴巴最新季度财报摘要",
-          "特斯拉季报要点",
-          "腾讯控股财务数据"
+          "Alibaba latest quarterly earnings summary",
+          "Tesla quarterly earnings highlights",
+          "Tencent Holdings financial data"
         ],
         "max_results_per_query": 3,
         "search_depth": "advanced"

@@ -27,7 +27,7 @@ async def lifespan(app: FastAPI):
             scheduler = start_scheduler()
             logger.info("APScheduler started — knowledge base refresh registered")
         except Exception as e:
-            logger.warning(f"APScheduler 启动失败（不影响主服务）: {e}")
+            logger.warning(f"APScheduler failed to start (main service unaffected): {e}")
 
     yield
 
@@ -38,7 +38,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Finance QA System",
-    description="金融资产问答系统 — LangGraph ReAct Agent + OpenRouter",
+    description="Finance QA — LangGraph ReAct Agent + OpenRouter",
     version="0.1.0",
     lifespan=lifespan,
 )

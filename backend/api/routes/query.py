@@ -95,6 +95,7 @@ async def query_agent(req: QueryRequest):
                         "status": "running",
                     }
                     tool_calls_info.append(step)
+                    logger.info(f"[query] Step added, total steps: {len(tool_calls_info)}")
                     yield f"data: {json.dumps({'type': 'step', 'step': step}, default=str)}\n\n"
 
                 elif kind == "on_tool_end":
@@ -164,6 +165,7 @@ async def query_agent(req: QueryRequest):
                     for step in tool_calls_info:
                         if step["tool"] == tool_name and step["status"] == "running":
                             step["status"] = "completed"
+                            logger.info(f"[query] Step completed: {tool_name}, total: {len(tool_calls_info)}")
                             break
 
                     step_update = {
@@ -178,7 +180,10 @@ async def query_agent(req: QueryRequest):
 
             # Send final steps summary
             if tool_calls_info:
+                logger.info(f"[query] Sending final steps, count: {len(tool_calls_info)}, detail: {json.dumps(tool_calls_info, default=str)}")
                 yield f"data: {json.dumps({'type': 'metadata', 'payload': {'steps': tool_calls_info}}, default=str)}\n\n"
+            else:
+                logger.warning("[query] No tool calls recorded, steps will not be sent")
 
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
