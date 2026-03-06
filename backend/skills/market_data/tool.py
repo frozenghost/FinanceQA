@@ -1,17 +1,79 @@
 """Market data skill — real-time quotes and historical OHLCV data."""
 
 import logging
-from typing import Literal
+import re
 
 import yfinance as yf
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.cache_service import cached
 
 logger = logging.getLogger(__name__)
 
+VALID_INTERVALS = ("1d", "1wk", "1mo")
+VALID_PERIODS = ("1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max")
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
-@tool
+
+class GetRealTimeQuoteInput(BaseModel):
+    """Schema for get_real_time_quote."""
+
+    ticker: str = Field(description="Stock symbol, e.g. BABA, TSLA, 0700.HK, ^GSPC")
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("ticker must be non-empty")
+        return t
+
+
+class GetHistoricalPricesInput(BaseModel):
+    """Schema for get_historical_prices."""
+
+    ticker: str = Field(description="Stock symbol")
+    period: str | None = Field(
+        default=None,
+        description="Time range: 1d/5d/1mo/3mo/6mo/1y/2y/5y/max (mutually exclusive with start/end)",
+    )
+    start: str | None = Field(
+        default=None,
+        description="Start date YYYY-MM-DD (use with end, mutually exclusive with period)",
+    )
+    end: str | None = Field(
+        default=None,
+        description="End date YYYY-MM-DD (use with start, mutually exclusive with period)",
+    )
+    interval: str = Field(default="1d", description="Granularity: 1d / 1wk / 1mo")
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("ticker must be non-empty")
+        return t
+
+    @model_validator(mode="after")
+    def validate_time_range(self):
+        if self.period and (self.start or self.end):
+            raise ValueError("Parameters 'period' and 'start/end' cannot be used together")
+        if (self.start and not self.end) or (self.end and not self.start):
+            raise ValueError("Both 'start' and 'end' must be provided together")
+        if self.period and self.period not in VALID_PERIODS:
+            raise ValueError(f"period must be one of {VALID_PERIODS}")
+        if self.interval not in VALID_INTERVALS:
+            raise ValueError(f"interval must be one of {VALID_INTERVALS}")
+        if self.start and not DATE_PATTERN.match(self.start):
+            raise ValueError("start must be YYYY-MM-DD")
+        if self.end and not DATE_PATTERN.match(self.end):
+            raise ValueError("end must be YYYY-MM-DD")
+        return self
+
+
+@tool(args_schema=GetRealTimeQuoteInput)
 @cached(key_prefix="quote", ttl=60)
 async def get_real_time_quote(ticker: str) -> dict:
     """
@@ -65,7 +127,7 @@ async def get_real_time_quote(ticker: str) -> dict:
         return {"error": f"Failed to fetch real-time quote: {str(e)}"}
 
 
-@tool
+@tool(args_schema=GetHistoricalPricesInput)
 @cached(key_prefix="ohlcv", ttl=3600)
 async def get_historical_prices(
     ticker: str,
@@ -88,16 +150,9 @@ async def get_historical_prices(
     - get_historical_prices("AAPL", period="1mo")  # last 1 month
     - get_historical_prices("AAPL", start="2024-03-15", end="2024-03-21")  # explicit date range
     """
-    # Parameter validation
-    if period and (start or end):
-        return {"error": "Parameters 'period' and 'start/end' cannot be used together; choose one mode."}
-    
-    if (start and not end) or (end and not start):
-        return {"error": "Both 'start' and 'end' must be provided together."}
-    
     if not period and not start:
-        period = "1mo"  # default
-    
+        period = "1mo"
+
     if period:
         time_range = f"period={period}"
         logger.info(f"[get_historical_prices] Fetching historical data for {ticker}: period={period}, interval={interval}")

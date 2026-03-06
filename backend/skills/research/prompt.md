@@ -8,6 +8,11 @@
 - User inquires about general financial knowledge
 - Information is likely to be in educational/reference materials
 
+**Content handling (when using this tool):**
+- **Allowed**: Formatting beautification (e.g. headings, lists, spacing) and content order adjustment only
+- **Not allowed**: Modify, rewrite, or add your own knowledge to the retrieved content; do not summarize or paraphrase
+- **Use top_k=3 or higher** when calling this tool
+
 ### search_web
 - User asks about very recent events or news
 - User wants latest information not in knowledge base

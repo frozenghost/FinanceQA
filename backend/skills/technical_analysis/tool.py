@@ -1,17 +1,53 @@
 """Technical analysis skill — indicators, patterns, and signals."""
 
 import logging
+import re
 
 import pandas as pd
 import yfinance as yf
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field, field_validator
 
 from services.cache_service import cached
 
 logger = logging.getLogger(__name__)
 
+DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+VALID_INTERVALS = ("1d", "1wk", "1mo")
 
-@tool
+
+class CalculateTechnicalIndicatorsInput(BaseModel):
+    """Schema for calculate_technical_indicators."""
+
+    ticker: str = Field(description="Stock symbol")
+    start: str = Field(description="Start date YYYY-MM-DD (required)")
+    end: str = Field(description="End date YYYY-MM-DD (required)")
+    interval: str = Field(default="1d", description="Granularity: 1d / 1wk / 1mo")
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("ticker must be non-empty")
+        return t
+
+    @field_validator("start", "end")
+    @classmethod
+    def date_format(cls, v: str) -> str:
+        if not v or not DATE_PATTERN.match(v.strip()):
+            raise ValueError("must be YYYY-MM-DD")
+        return v.strip()
+
+    @field_validator("interval")
+    @classmethod
+    def interval_valid(cls, v: str) -> str:
+        if v not in VALID_INTERVALS:
+            raise ValueError(f"interval must be one of {VALID_INTERVALS}")
+        return v
+
+
+@tool(args_schema=CalculateTechnicalIndicatorsInput)
 @cached(key_prefix="ta", ttl=3600)
 async def calculate_technical_indicators(
     ticker: str,

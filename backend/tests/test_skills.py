@@ -72,7 +72,12 @@ class TestTechnicalAnalysisSkill:
         """A valid ticker should return technical indicators and signals."""
         from skills.technical_analysis.tool import calculate_technical_indicators
 
-        result = calculate_technical_indicators.invoke({"ticker": "AAPL", "period": "6mo"})
+        result = calculate_technical_indicators.invoke({
+            "ticker": "AAPL",
+            "start": "2024-01-01",
+            "end": "2024-06-30",
+            "interval": "1d",
+        })
 
         assert isinstance(result, dict)
         if "error" not in result:

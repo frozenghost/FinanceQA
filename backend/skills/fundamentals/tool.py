@@ -5,13 +5,42 @@ import logging
 import pandas as pd
 import yfinance as yf
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field, field_validator
 
 from services.cache_service import cached
 
 logger = logging.getLogger(__name__)
 
 
-@tool
+class GetCompanyFundamentalsInput(BaseModel):
+    """Schema for get_company_fundamentals."""
+
+    ticker: str = Field(description="Stock symbol")
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("ticker must be non-empty")
+        return t
+
+
+class GetEarningsHistoryInput(BaseModel):
+    """Schema for get_earnings_history."""
+
+    ticker: str = Field(description="Stock symbol")
+
+    @field_validator("ticker")
+    @classmethod
+    def ticker_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("ticker must be non-empty")
+        return t
+
+
+@tool(args_schema=GetCompanyFundamentalsInput)
 @cached(key_prefix="fundamentals", ttl=86400)
 async def get_company_fundamentals(ticker: str) -> dict:
     """
@@ -89,7 +118,7 @@ async def get_company_fundamentals(ticker: str) -> dict:
         return {"error": f"Failed to fetch fundamentals: {str(e)}"}
 
 
-@tool
+@tool(args_schema=GetEarningsHistoryInput)
 @cached(key_prefix="earnings", ttl=86400)
 async def get_earnings_history(ticker: str) -> dict:
     """

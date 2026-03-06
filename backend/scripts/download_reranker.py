@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config.settings import settings
 
-HF_MODEL_ID = "BAAI/bge-reranker-v2-m3"
+HF_MODEL_ID = "BAAI/bge-reranker-base"
 
 
 def download_and_convert(output_dir: str | None = None):

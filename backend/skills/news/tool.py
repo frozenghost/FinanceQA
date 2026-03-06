@@ -1,10 +1,10 @@
 """News and sentiment skill — financial news and market sentiment analysis."""
 
 import logging
-from typing import Optional
 
 import httpx
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field, field_validator
 
 from config.settings import settings
 from services.cache_service import cached
@@ -12,7 +12,22 @@ from services.cache_service import cached
 logger = logging.getLogger(__name__)
 
 
-@tool
+class GetFinancialNewsInput(BaseModel):
+    """Schema for get_financial_news."""
+
+    query: str = Field(description="Search keywords: company name, industry, event, etc.")
+    page_size: int = Field(default=5, ge=1, le=20, description="Number of news items to return")
+
+    @field_validator("query")
+    @classmethod
+    def query_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("query must be non-empty")
+        return t
+
+
+@tool(args_schema=GetFinancialNewsInput)
 @cached(key_prefix="news", ttl=1800)
 async def get_financial_news(query: str, page_size: int = 5) -> dict:
     """

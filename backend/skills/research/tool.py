@@ -6,11 +6,42 @@ from typing import Any
 
 import numpy as np
 from langchain_core.tools import tool
+from pydantic import BaseModel, Field, field_validator
 
 from config.settings import settings
 from services.cache_service import cached
 
 logger = logging.getLogger(__name__)
+
+
+class SearchKnowledgeBaseInput(BaseModel):
+    """Schema for search_knowledge_base."""
+
+    query: str = Field(description="Search question, e.g. 'What is P/E ratio', 'How to compute ROE'")
+    top_k: int = Field(default=5, ge=1, le=20, description="Number of results to return")
+
+    @field_validator("query")
+    @classmethod
+    def query_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("query must be non-empty")
+        return t
+
+
+class SearchWebInput(BaseModel):
+    """Schema for search_web."""
+
+    query: str = Field(description="Search keywords")
+    max_results: int = Field(default=5, ge=1, le=10, description="Number of results")
+
+    @field_validator("query")
+    @classmethod
+    def query_not_empty(cls, v: str) -> str:
+        t = (v or "").strip()
+        if not t:
+            raise ValueError("query must be non-empty")
+        return t
 
 # ── BGE-reranker-v2-m3 ONNX singleton ────────────────────────
 _onnx_session = None
@@ -116,7 +147,7 @@ def _rerank(query: str, documents: list[str], top_n: int = 5) -> list[tuple[int,
         return [(i, 0.0) for i in range(min(top_n, len(documents)))]
 
 
-@tool
+@tool(args_schema=SearchKnowledgeBaseInput)
 async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     """
     Search the financial knowledge base (hybrid: vector + BM25 + rerank).
@@ -217,7 +248,7 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
         }
 
 
-@tool
+@tool(args_schema=SearchWebInput)
 @cached(key_prefix="web", ttl=900)
 async def search_web(query: str, max_results: int = 5) -> dict:
     """
