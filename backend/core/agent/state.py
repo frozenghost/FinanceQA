@@ -14,6 +14,7 @@ class AgentState(MessagesState):
     
     tool_plan: list[dict[str, Any]] = []
     needs_tools: bool = False
+    response_language: str | None = None
     coordination_reasoning: str = ""
     coordinator_raw_output: str = ""
     coordinator_markdown: str = ""

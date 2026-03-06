@@ -44,20 +44,28 @@ tool_retry_policy = RetryPolicy(
 checkpointer = InMemorySaver()
 
 
+RESPONSE_LANGUAGE_NAMES = {
+    "zh": "Chinese (Simplified)",
+    "zh-Hans": "Chinese (Simplified)",
+    "en": "English",
+    "ja": "Japanese",
+    "ko": "Korean",
+}
+
+
 async def agent_node(state: AgentState) -> dict:
     """Agent node: Call LLM for reasoning and tool calling"""
     llm = LLMClient().get_langchain_model(role="market_analyst")
-    
-    # Bind tools, enable parallel tool calls
     llm_with_tools = llm.bind_tools(ALL_TOOLS, parallel_tool_calls=True)
-    
-    # Get system prompt (only add on first call)
+
     messages = state["messages"]
     if not any(isinstance(m, SystemMessage) and "You are a professional" in m.content for m in messages):
-        # Use strict mode prompt
         system_prompt = load_system_prompt(strict=True)
+        lang_code = state.get("response_language") or "en"
+        lang_name = RESPONSE_LANGUAGE_NAMES.get(lang_code) or lang_code
+        system_prompt += f"\n\n**Response language**: You must respond in **{lang_name}**. (Detected from user question: {lang_code})"
         messages = [SystemMessage(content=system_prompt)] + messages
-    
+
     logger.info("[agent_node] Calling LLM for reasoning")
     
     # Async call LLM

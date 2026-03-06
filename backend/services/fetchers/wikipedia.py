@@ -34,7 +34,11 @@ class WikipediaFetcher(BaseFetcher):
         for query in self.queries:
             try:
                 # Auto-detect language based on Chinese characters
-                lang = "zh" if any("\u4e00" <= c <= "\u9fff" for c in query) else "en"
+                # Use zh-hans for Simplified Chinese, zh-hant for Traditional Chinese
+                if any("\u4e00" <= c <= "\u9fff" for c in query):
+                    lang = "zh-hans"  # Simplified Chinese
+                else:
+                    lang = "en"
                 loaded_docs = WikipediaLoader(
                     query=query,
                     load_max_docs=self.max_docs_per_query,

@@ -137,18 +137,20 @@ def _parse_coordinator_output(aimessage: AIMessage) -> dict:
         return {
             "tool_plan": tool_plan,
             "needs_tools": plan.get("needs_tools", True),
+            "response_language": plan.get("response_language") or None,
             "coordination_reasoning": plan.get("reasoning", ""),
-            "coordinator_raw_output": raw_output,  # Full output (Markdown + JSON)
-            "coordinator_markdown": markdown_content,  # Markdown portion only
+            "coordinator_raw_output": raw_output,
+            "coordinator_markdown": markdown_content,
         }
     except Exception as e:
         logger.error(f"Failed to parse coordinator output: {e}")
         return {
             "tool_plan": [],
             "needs_tools": True,
+            "response_language": None,
             "coordination_reasoning": "Coordinator parsing failed; the agent will decide how to proceed.",
             "coordinator_raw_output": raw_output,
-            "coordinator_markdown": raw_output,  # Fall back to raw output if parsing fails
+            "coordinator_markdown": raw_output,
         }
 
 

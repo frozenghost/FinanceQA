@@ -85,9 +85,9 @@
     }
   ],
   "chunking": {
-    "chunk_size": 1024,
-    "chunk_overlap": 128,
-    "separators": ["\n\n", "\n", "。", ".", "!", "?", "；", ";", " "]
+    "chunk_size": 2000,
+    "chunk_overlap": 400,
+    "separators": ["\n\n", "\n", "。", "！", "？", "；", ";", ". ", " ", ""]
   },
   "vectordb": {
     "collection_name": "finance_knowledge",
