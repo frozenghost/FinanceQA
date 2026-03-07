@@ -232,7 +232,7 @@ Please choose appropriate tools based on the question type:
         if any(t.get("tool") == "search_knowledge_base" for t in tool_plan):
             enforcement_msg += """
 
-**Knowledge base (search_knowledge_base)**: (1) Judge whether each retrieved snippet is relevant to the user's question; use only relevant content in your answer and omit irrelevant ones. (2) Present the relevant content in full—do not summarize or compress. (3) Never mention internal retrieval scores, retrieval methods, or any retrieval metadata to the user."""
+**Knowledge base (search_knowledge_base)**: (1) Judge whether each retrieved snippet is relevant to the user's question; use only relevant content in your answer and omit irrelevant ones. (2) Present the relevant content in full—do not summarize or compress. (3) Do not mention internal file paths, file names, document structure (e.g. page numbers, section names from internal docs), retrieval methods, or retrieval metadata to the user. When citing, use only the generic source label (e.g. knowledge base) provided; do not invent or infer specific documents or files."""
     
     # Append enforcement instructions as a system message
     messages = state["messages"]

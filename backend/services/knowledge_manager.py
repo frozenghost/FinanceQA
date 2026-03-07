@@ -77,8 +77,8 @@ class KnowledgeManager:
             is_separator_regex=False,
         )
 
-    def _get_vectordb(self) -> Chroma:
-        """Get or create vector database instance."""
+    def _get_vectordb(self, use_embedding_cache: bool = True) -> Chroma:
+        """Get or create vector database instance. use_embedding_cache=False skips Redis (e.g. for refresh)."""
         vectordb_config = self.config.get("vectordb", {})
         
         collection_name = vectordb_config.get("collection_name", "finance_knowledge")
@@ -91,7 +91,7 @@ class KnowledgeManager:
         
         return Chroma(
             collection_name=collection_name,
-            embedding_function=get_embeddings(),
+            embedding_function=get_embeddings(use_cache=use_embedding_cache),
             persist_directory=persist_dir,
         )
 
@@ -251,8 +251,8 @@ class KnowledgeManager:
         
         logger.info(f"Documents: {len(all_docs)}, Chunks: {len(chunks)}")
         
-        # Get vector database
-        vectordb = self._get_vectordb()
+        # Use uncached embeddings so refresh does not write to Redis
+        vectordb = self._get_vectordb(use_embedding_cache=False)
         
         # Full rebuild (delete and recreate)
         try:
@@ -261,8 +261,7 @@ class KnowledgeManager:
         except Exception as e:
             logger.warning(f"Could not delete collection (may not exist): {e}")
         
-        # Re-create vectordb after deletion
-        vectordb = self._get_vectordb()
+        vectordb = self._get_vectordb(use_embedding_cache=False)
         vectordb.add_documents(chunks)
         
         logger.info(f"=== Knowledge base refresh complete: {len(chunks)} chunks written ===")

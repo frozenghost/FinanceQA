@@ -204,15 +204,20 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
         texts = [d["page_content"] for d in merged]
         ranked = _rerank(query, texts, top_n=top_k)
 
+        def _display_source(_meta: dict) -> str:
+            """Public-facing label only; never expose internal paths or file names."""
+            return "知识库"
+
         results = []
         for idx, score in ranked:
             if idx >= len(merged):
                 continue
             doc = merged[idx]
             meta = doc.get("metadata") or {}
+            display_src = _display_source(meta)
             results.append({
                 "content": doc["page_content"],
-                "source": meta.get("source", "unknown"),
+                "source": display_src,
                 "type": meta.get("type", "unknown"),
                 "relevance_score": score,
             })
@@ -223,7 +228,7 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
                 i + 1, r["source"], r["type"], r["relevance_score"], r["content"][:100]
             )
 
-        # Expose only content/source/type to the agent; never send internal scores to frontend or model
+        # Expose only content and generic source; never internal paths, filenames, or scores
         results_for_agent = [
             {"content": r["content"], "source": r["source"], "type": r["type"]}
             for r in results

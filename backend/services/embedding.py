@@ -55,10 +55,10 @@ def _create_openai_embeddings() -> OpenAIEmbeddings:
     return OpenAIEmbeddings(**kwargs)
 
 
-def get_embeddings() -> Embeddings:
-    """Return embeddings with Redis cache when available. Uses CACHE_TTL_EMBEDDING for TTL."""
+def get_embeddings(use_cache: bool = True) -> Embeddings:
+    """Return embeddings; when use_cache=True and Redis is available, wrap with CacheBackedEmbeddings."""
     raw = _create_openai_embeddings()
-    if not REDIS_AVAILABLE:
+    if not use_cache or not REDIS_AVAILABLE:
         return raw
     try:
         redis_url = f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}"
