@@ -172,7 +172,7 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
     Search the financial knowledge base (hybrid: vector + BM25 + rerank).
     - query: Search question, e.g. "What is P/E ratio", "How to compute ROE"
     - top_k: Number of results to return, default 5
-    Returns the most relevant document snippets with content, source and relevance score.
+    Returns document snippets with content, source and type (no internal scores).
     Use for financial concepts, indicator definitions, industry knowledge.
     If no relevant content is found, tell the user clearly; do not fabricate answers.
     """
@@ -229,11 +229,14 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
                 i + 1, r["source"], r["type"], r["relevance_score"], r["content"][:100]
             )
 
+        # Expose only content/source/type to the agent; never send internal scores to frontend or model
+        results_for_agent = [
+            {"content": r["content"], "source": r["source"], "type": r["type"]}
+            for r in results
+        ]
         return {
             "query": query,
-            "results": results,
-            "total_candidates": len(merged),
-            "retrieval_method": "hybrid (vector + BM25) + BGE rerank",
+            "results": results_for_agent,
         }
     except Exception as e:
         logger.exception("Knowledge base retrieval failed")

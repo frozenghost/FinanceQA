@@ -13,10 +13,9 @@ from services.cache_service import cached
 
 logger = logging.getLogger(__name__)
 
-# Max URLs to send to Tavily extract (API limit and latency)
-EXTRACT_URLS_LIMIT = 5
+EXTRACT_URLS_LIMIT = 15
+MIN_VERIFIED_CONTENT_LENGTH = 80
 
-# Placeholder or invalid URL strings from APIs (case-insensitive)
 INVALID_URL_PHRASES = ("link not provided", "url not provided", "n/a", "")
 
 
@@ -63,8 +62,9 @@ def _merge_articles(
     serpapi_articles: list[dict],
     serpapi_url_to_content: dict[str, str],
     tavily_results: list[dict],
+    serpapi_verified_only: bool,
 ) -> list[dict]:
-    """Merge SerpAPI (with optional full content) and Tavily results into one list for LLM."""
+    """Merge results. SerpAPI: include only if verified by Tavily extract (when serpapi_verified_only)."""
     merged = []
     seen_urls: set[str] = set()
 
@@ -72,9 +72,14 @@ def _merge_articles(
         url = (a.get("url") or "").strip()
         if not _is_valid_article_url(url) or url in seen_urls:
             continue
+        if serpapi_verified_only:
+            content = serpapi_url_to_content.get(url) or ""
+        else:
+            content = serpapi_url_to_content.get(url) or a.get("description", "")
+        if len((content or "").strip()) < MIN_VERIFIED_CONTENT_LENGTH:
+            continue
         seen_urls.add(url)
         title = a.get("title", "") or "Link"
-        content = serpapi_url_to_content.get(url) or a.get("description", "")
         merged.append({
             "title": title,
             "source": a.get("source", ""),
@@ -87,7 +92,10 @@ def _merge_articles(
 
     for r in tavily_results:
         url = (r.get("url") or "").strip()
+        content = (r.get("content") or "").strip()
         if not _is_valid_article_url(url) or url in seen_urls:
+            continue
+        if len(content) < MIN_VERIFIED_CONTENT_LENGTH:
             continue
         seen_urls.add(url)
         title = r.get("title", "") or "Link"
@@ -97,7 +105,7 @@ def _merge_articles(
             "published_at": "",
             "url": url,
             "link": f"[{title}]({url})",
-            "content": r.get("content", ""),
+            "content": content,
             "data_source": "news",
         })
 
@@ -164,6 +172,7 @@ async def get_financial_news(query: str, page_size: int = 10) -> dict:
     if settings.TAVILY_API_KEY:
         # Enrich SerpAPI URLs with Tavily extract
         urls_to_extract = [a["url"] for a in serpapi_articles if a.get("url")][:EXTRACT_URLS_LIMIT]
+        logger.info("Tavily extract verifying %d SerpAPI URLs", len(urls_to_extract))
         if urls_to_extract:
             try:
                 extract_res = await asyncio.wait_for(
@@ -206,7 +215,12 @@ async def get_financial_news(query: str, page_size: int = 10) -> dict:
         except Exception as e:
             logger.warning(f"Tavily search failed: {e}")
 
-    articles = _merge_articles(serpapi_articles, serpapi_url_to_content, tavily_results)
+    articles = _merge_articles(
+        serpapi_articles,
+        serpapi_url_to_content,
+        tavily_results,
+        serpapi_verified_only=bool(settings.TAVILY_API_KEY),
+    )
     data_sources = ["news"] if articles else []
 
     logger.info(

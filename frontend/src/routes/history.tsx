@@ -54,7 +54,7 @@ function HistoryPage() {
 
   return (
     <div className="flex flex-col h-full bg-slate-950/60">
-      <div className="px-8 py-10 max-w-4xl mx-auto w-full">
+      <div className="flex-1 min-h-0 overflow-y-auto px-8 py-10 max-w-4xl mx-auto w-full">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-2xl font-bold text-slate-50 tracking-tight">

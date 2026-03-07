@@ -1,6 +1,6 @@
 import { createRootRoute, Outlet, Link, useNavigate } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MessageSquare, History, Plus, BarChart3, Settings } from "lucide-react";
+import { MessageSquare, History, Plus, BarChart3 } from "lucide-react";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -67,13 +67,6 @@ function RootLayout() {
               History
             </Link>
           </nav>
-
-          <div className="p-4 border-t border-slate-800/80 mx-3 mt-0">
-            <button className="flex items-center gap-2 px-2.5 py-2.5 w-full text-xs font-medium text-slate-400 hover:text-emerald-300 hover:bg-slate-900/70 rounded-2xl transition-all hover:shadow-[0_10px_26px_rgba(15,23,42,0.9)]">
-              <Settings className="w-4 h-4 text-slate-500" />
-              Settings
-            </button>
-          </div>
         </aside>
 
         {/* Main Content */}
