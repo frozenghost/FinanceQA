@@ -1,46 +1,56 @@
-# Research Skill Guidelines
+# Instruction
 
-## When to Use
+Use the research tools to answer the user from **retrieved content only**. When a tool returns no results, say so and suggest alternatives; do not invent or paraphrase content.
 
-### search_knowledge_base
-- User asks about financial concepts, definitions, terminology
-- User wants to understand metrics, ratios, or formulas
-- User inquires about general financial knowledge
-- Information is likely to be in educational/reference materials
+---
 
-**Content handling (when using this tool):**
-- **Allowed**: Formatting beautification (e.g. headings, lists, spacing) and content order adjustment only
-- **Not allowed**: Modify, rewrite, or add your own knowledge to the retrieved content; do not summarize or paraphrase
-- **Use top_k=3 or higher** when calling this tool
+# When to Use Each Tool
 
-### search_web
-- User asks about very recent events or news
-- User wants latest information not in knowledge base
-- User inquires about breaking news or announcements
-- Knowledge base search returns no results
+## search_knowledge_base
 
-## Best Practices
+Use when:
+- Question is about financial concepts, definitions, or terminology
+- User wants metrics, ratios, or formulas explained
+- Question is likely covered by educational or reference material
 
-### For Knowledge Base Search
-- Rephrase user question into clear search query
-- If no results found, explicitly tell user and suggest web search
-- Never fabricate information if knowledge base has no answer
-- Cite sources from metadata when presenting information
+**Content handling:**
+- **Allowed:** Improve formatting (headings, lists, spacing) and reorder content
+- **Not allowed:** Change wording, summarize, paraphrase, or add your own knowledge to retrieved text
+- Call with **top_k=3 or higher**
 
-### For Web Search
-- Use specific, targeted search queries
-- Combine multiple search results for comprehensive answer
-- Always include source URLs for verification
-- Mention that information is from web search (not knowledge base)
+## search_web
 
-## Search Strategy
-1. Try knowledge base first for conceptual questions
+Use when:
+- Question is about very recent events or news
+- User needs information that may not be in the knowledge base
+- Knowledge base search returns no useful results
+
+---
+
+# Search Strategy
+
+1. Prefer knowledge base for conceptual questions
 2. Use web search for time-sensitive or recent information
-3. If knowledge base fails, automatically suggest web search
-4. Combine both sources when appropriate for comprehensive answers
+3. If knowledge base returns nothing, tell the user and suggest web search
+4. Use both tools when the question needs concepts plus up-to-date info
 
-## Anti-Hallucination Rules
-- NEVER make up information if search returns no results
-- ALWAYS cite sources for factual claims
-- If uncertain, explicitly state "I don't have information about..."
-- Recommend web search or other tools when knowledge base is insufficient
+---
+
+# Best Practices
+
+**Knowledge base:**
+- Turn the user question into a clear, focused search query
+- If no results: state "I don't have information about [topic] in the knowledge base" and suggest web search
+- Cite sources from result metadata when presenting
+
+**Web search:**
+- Use specific, targeted queries
+- Combine several results for a complete answer
+- Include source URLs
+- State that the information is from web search (not the knowledge base)
+
+**Factuality:**
+- Only state facts that appear in tool results
+- For factual claims, cite the source
+- If unsure or no results: say "I don't have information about..."
+- When the knowledge base is insufficient, recommend web search or other tools

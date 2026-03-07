@@ -118,74 +118,155 @@ async def get_company_fundamentals(ticker: str) -> dict:
         return {"error": f"Failed to fetch fundamentals: {str(e)}"}
 
 
+def _safe_get(df: pd.DataFrame, row_names: list[str], col) -> float | None:
+    for name in row_names:
+        if name in df.index:
+            val = df.loc[name, col]
+            if val is not None and not pd.isna(val):
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    pass
+    return None
+
+
+def _income_quarter(income_df: pd.DataFrame, col, date_fmt: str = "%Y-%m-%d") -> dict | None:
+    if income_df is None or income_df.empty:
+        return None
+    date_str = col.strftime(date_fmt) if hasattr(col, "strftime") else str(col)
+    revenue = _safe_get(income_df, ["Total Revenue", "Revenue"], col)
+    net_income = _safe_get(income_df, ["Net Income"], col)
+    operating_income = _safe_get(income_df, ["Operating Income", "Operating Income Loss"], col)
+    gross_profit = _safe_get(income_df, ["Gross Profit"], col)
+    cost_of_revenue = _safe_get(income_df, ["Cost of Revenue", "Cost Of Revenue"], col)
+    eps = _safe_get(income_df, ["Diluted EPS", "Basic EPS"], col)
+    out = {
+        "date": date_str,
+        "revenue": revenue,
+        "earnings": net_income,
+        "operating_income": operating_income,
+        "gross_profit": gross_profit,
+        "cost_of_revenue": cost_of_revenue,
+        "eps": eps,
+    }
+    if revenue and net_income:
+        out["profit_margin"] = round(net_income / revenue * 100, 2)
+    if revenue and operating_income is not None:
+        out["operating_margin"] = round(operating_income / revenue * 100, 2)
+    if revenue and gross_profit is not None:
+        out["gross_margin"] = round(gross_profit / revenue * 100, 2)
+    return out
+
+
 @tool(args_schema=GetEarningsHistoryInput)
 @cached(key_prefix="earnings", ttl=86400)
 async def get_earnings_history(ticker: str) -> dict:
     """
-    Get company historical earnings data (quarterly and annual).
+    Get company historical earnings data (quarterly and annual) plus EPS surprise history.
     - ticker: Stock symbol
-    Returns revenue, net income, EPS and other earnings data for recent quarters and years.
-    Suitable for earnings analysis, performance trend evaluation, YoY and QoQ comparisons.
+    Returns revenue, net income, operating income, margins, EPS, and chart-ready time series.
+    Suitable for earnings analysis, trend evaluation, YoY/QoQ comparisons, and frontend charts.
     """
     logger.info(f"[get_earnings_history] Starting to fetch earnings history for {ticker}")
-    
+
     try:
         import asyncio
+
         loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        
-        # Use new API: income_stmt and quarterly_income_stmt
-        quarterly_income, annual_income = await asyncio.gather(
+
+        quarterly_income, annual_income, earnings_hist_df, earnings_dates_df = await asyncio.gather(
             loop.run_in_executor(None, lambda: tk.quarterly_income_stmt),
-            loop.run_in_executor(None, lambda: tk.income_stmt)
+            loop.run_in_executor(None, lambda: tk.income_stmt),
+            loop.run_in_executor(None, lambda: tk.get_earnings_history()),
+            loop.run_in_executor(None, lambda: tk.get_earnings_dates(limit=16)),
         )
 
         result = {
             "ticker": ticker,
             "quarterly": [],
             "annual": [],
+            "earnings_surprise": [],
+            "earnings_dates": [],
+            "chart_series": {
+                "quarterly": {"labels": [], "revenue": [], "earnings": [], "eps": [], "profit_margin": [], "operating_margin": []},
+                "annual": {"labels": [], "revenue": [], "earnings": [], "eps": [], "profit_margin": [], "operating_margin": []},
+                "eps_surprise": {"dates": [], "eps_actual": [], "eps_estimate": [], "surprise_percent": []},
+            },
             "data_source": "Financial Data Service",
         }
 
-        # Process quarterly data
         if quarterly_income is not None and not quarterly_income.empty:
-            # Data is columns as dates, rows as metrics
-            for col in list(quarterly_income.columns)[:8]:  # Last 8 quarters
-                date_str = col.strftime("%Y-%m-%d") if hasattr(col, "strftime") else str(col)
-                
-                # Extract data from income statement
-                revenue = quarterly_income.loc["Total Revenue", col] if "Total Revenue" in quarterly_income.index else None
-                net_income = quarterly_income.loc["Net Income", col] if "Net Income" in quarterly_income.index else None
-                
-                result["quarterly"].append({
-                    "date": date_str,
-                    "revenue": float(revenue) if revenue is not None and not pd.isna(revenue) else None,
-                    "earnings": float(net_income) if net_income is not None and not pd.isna(net_income) else None,
-                })
+            for col in list(quarterly_income.columns)[:8]:
+                row = _income_quarter(quarterly_income, col)
+                if row:
+                    result["quarterly"].append(row)
+                    result["chart_series"]["quarterly"]["labels"].append(row["date"])
+                    result["chart_series"]["quarterly"]["revenue"].append(row["revenue"])
+                    result["chart_series"]["quarterly"]["earnings"].append(row["earnings"])
+                    result["chart_series"]["quarterly"]["eps"].append(row.get("eps"))
+                    result["chart_series"]["quarterly"]["profit_margin"].append(row.get("profit_margin"))
+                    result["chart_series"]["quarterly"]["operating_margin"].append(row.get("operating_margin"))
 
-        # Process annual data
         if annual_income is not None and not annual_income.empty:
-            # Data is columns as dates, rows as metrics
-            for col in list(annual_income.columns)[:5]:  # Last 5 years
-                date_str = col.strftime("%Y") if hasattr(col, "strftime") else str(col)
-                
-                # Extract data from income statement
-                revenue = annual_income.loc["Total Revenue", col] if "Total Revenue" in annual_income.index else None
-                net_income = annual_income.loc["Net Income", col] if "Net Income" in annual_income.index else None
-                
-                result["annual"].append({
-                    "year": date_str,
-                    "revenue": float(revenue) if revenue is not None and not pd.isna(revenue) else None,
-                    "earnings": float(net_income) if net_income is not None and not pd.isna(net_income) else None,
-                })
+            for col in list(annual_income.columns)[:5]:
+                row = _income_quarter(annual_income, col, date_fmt="%Y")
+                if row:
+                    row["year"] = row.pop("date")
+                    result["annual"].append(row)
+                    result["chart_series"]["annual"]["labels"].append(row["year"])
+                    result["chart_series"]["annual"]["revenue"].append(row["revenue"])
+                    result["chart_series"]["annual"]["earnings"].append(row["earnings"])
+                    result["chart_series"]["annual"]["eps"].append(row.get("eps"))
+                    result["chart_series"]["annual"]["profit_margin"].append(row.get("profit_margin"))
+                    result["chart_series"]["annual"]["operating_margin"].append(row.get("operating_margin"))
 
-        if not result["quarterly"] and not result["annual"]:
+        if earnings_hist_df is not None and not earnings_hist_df.empty:
+            for idx in list(earnings_hist_df.index)[:12]:
+                date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)
+                row = {"date": date_str}
+                for c in ("epsEstimate", "epsActual", "epsDifference", "surprisePercent"):
+                    if c in earnings_hist_df.columns:
+                        v = earnings_hist_df.loc[idx, c]
+                        if v is not None and not pd.isna(v):
+                            key = "surprise_percent" if c == "surprisePercent" else c
+                            row[key] = float(v)
+                result["earnings_surprise"].append(row)
+                result["chart_series"]["eps_surprise"]["dates"].append(date_str)
+                result["chart_series"]["eps_surprise"]["eps_actual"].append(row.get("epsActual"))
+                result["chart_series"]["eps_surprise"]["eps_estimate"].append(row.get("epsEstimate"))
+                result["chart_series"]["eps_surprise"]["surprise_percent"].append(row.get("surprise_percent"))
+
+        if earnings_dates_df is not None and not earnings_dates_df.empty:
+            cols = earnings_dates_df.columns.tolist()
+            for idx in list(earnings_dates_df.index)[:8]:
+                date_str = idx.strftime("%Y-%m-%d") if hasattr(idx, "strftime") else str(idx)
+                entry = {"date": date_str}
+                if "Earnings Date" in cols:
+                    ed = earnings_dates_df.loc[idx, "Earnings Date"]
+                    if hasattr(ed, "strftime"):
+                        entry["earnings_date"] = ed.strftime("%Y-%m-%d")
+                    else:
+                        entry["earnings_date"] = str(ed) if ed is not None and not pd.isna(ed) else None
+                for k in ("Reported EPS", "Estimated EPS", "Surprise(%)"):
+                    if k in cols:
+                        v = earnings_dates_df.loc[idx, k]
+                        if v is not None and not pd.isna(v):
+                            key = "reported_eps" if k == "Reported EPS" else "estimated_eps" if k == "Estimated EPS" else "surprise_pct"
+                            entry[key] = float(v)
+                result["earnings_dates"].append(entry)
+
+        if not result["quarterly"] and not result["annual"] and not result["earnings_surprise"]:
             logger.warning(f"[get_earnings_history] No earnings data found for {ticker}")
             return {"error": f"No earnings data found for {ticker}"}
 
-        logger.info(f"[get_earnings_history] Successfully fetched {ticker} earnings: {len(result['quarterly'])} quarters, {len(result['annual'])} years")
+        logger.info(
+            f"[get_earnings_history] Successfully fetched {ticker} earnings: "
+            f"{len(result['quarterly'])} quarters, {len(result['annual'])} years, "
+            f"{len(result['earnings_surprise'])} eps surprises"
+        )
         return result
-        
+
     except Exception as e:
         logger.error(f"[get_earnings_history] Failed to fetch earnings for {ticker}: {e}", exc_info=True)
         return {"error": f"Failed to fetch earnings: {str(e)}"}

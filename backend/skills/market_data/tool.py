@@ -144,6 +144,7 @@ async def get_historical_prices(
     - end: End date, format YYYY-MM-DD (mutually exclusive with period, must be used with start)
     - interval: Data granularity, supports 1d (daily) / 1wk (weekly) / 1mo (monthly)
     Returns a full OHLCV list with open, high, low, close, volume.
+    period_return_pct is (last close - first open) / first open, matching K-line 涨跌幅 in brokerage apps.
     Suitable for candlestick charts, technical indicators, and historical analysis.
     
     Examples:
@@ -189,15 +190,18 @@ async def get_historical_prices(
                 "volume": int(row["Volume"]),
             })
 
-        # Basic period statistics
-        closes = hist["Close"]
-        period_return = ((closes.iloc[-1] - closes.iloc[0]) / closes.iloc[0] * 100) if len(closes) > 1 else 0
+        # Period return: (last close - first open) / first open, same as K-line 涨跌幅 in brokerage apps
+        first_open = hist["Open"].iloc[0]
+        last_close = hist["Close"].iloc[-1]
+        period_return = ((last_close - first_open) / first_open * 100) if first_open and first_open != 0 else 0
 
         result = {
             "ticker": ticker,
             "time_range": time_range,
             "interval": interval,
             "data_points": len(ohlcv),
+            "period_open": round(float(first_open), 2),
+            "period_close": round(float(last_close), 2),
             "period_return_pct": round(float(period_return), 2),
             "period_high": round(float(hist["High"].max()), 2),
             "period_low": round(float(hist["Low"].min()), 2),

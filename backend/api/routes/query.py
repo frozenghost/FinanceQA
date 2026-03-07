@@ -156,6 +156,17 @@ async def query_agent(req: QueryRequest):
                                     "indicators": parsed.get("indicators"),
                                     "signals": parsed.get("signals"),
                                 }
+                            elif "chart_series" in parsed and not parsed.get("error"):
+                                logger.info(f"[query] Found chart_series (earnings) in {tool_name} output")
+                                metadata_payload = {
+                                    "type": "earnings",
+                                    "ticker": parsed.get("ticker"),
+                                    "quarterly": parsed.get("quarterly"),
+                                    "annual": parsed.get("annual"),
+                                    "earnings_surprise": parsed.get("earnings_surprise"),
+                                    "earnings_dates": parsed.get("earnings_dates"),
+                                    "chart_series": parsed.get("chart_series"),
+                                }
                             else:
                                 logger.info(f"[query] No ohlcv or indicators in {tool_name}, keys: {list(parsed.keys())}")
                     except Exception as e:

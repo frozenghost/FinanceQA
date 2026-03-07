@@ -33,8 +33,14 @@ export interface CoordinatorData {
   isComplete?: boolean;
 }
 
+export interface EarningsChartSeries {
+  quarterly?: { labels: string[]; revenue: (number | null)[]; earnings: (number | null)[]; eps: (number | null)[]; profit_margin: (number | null)[]; operating_margin: (number | null)[] };
+  annual?: { labels: string[]; revenue: (number | null)[]; earnings: (number | null)[]; eps: (number | null)[]; profit_margin: (number | null)[]; operating_margin: (number | null)[] };
+  eps_surprise?: { dates: string[]; eps_actual: (number | null)[]; eps_estimate: (number | null)[]; surprise_percent: (number | null)[] };
+}
+
 export interface MessageMetadata {
-  type: "market" | "technical" | "rag" | "hybrid";
+  type: "market" | "technical" | "rag" | "hybrid" | "earnings";
   ticker?: string;
   ohlcv?: OHLCV[];
   current?: number;
@@ -44,6 +50,11 @@ export interface MessageMetadata {
   signals?: string[];
   steps?: AgentStep[];
   coordinator?: CoordinatorData;
+  quarterly?: unknown[];
+  annual?: unknown[];
+  earnings_surprise?: unknown[];
+  earnings_dates?: unknown[];
+  chart_series?: EarningsChartSeries;
 }
 
 export interface Message {

@@ -18,6 +18,18 @@ import {
   TrendingDown,
   Minus,
 } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Legend,
+} from "recharts";
 import type { Message, MessageMetadata } from "../hooks/useSSEChat";
 import { PriceChart } from "./PriceChart";
 
@@ -141,6 +153,12 @@ function MetadataCardsTop({ metadata }: { metadata: MessageMetadata }) {
         !!metadata.indicators) && (
         <TechnicalCard metadata={metadata} />
       )}
+
+      {/* Earnings card (quarterly/annual + charts) */}
+      {(metadata.type === "earnings" ||
+        (!!metadata.chart_series && !!metadata.ticker)) && (
+        <EarningsCard metadata={metadata} />
+      )}
     </div>
   );
 }
@@ -238,6 +256,200 @@ function TechnicalCard({ metadata }: { metadata: MessageMetadata }) {
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function formatMillions(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "—";
+  const abs = Math.abs(value);
+  if (abs >= 1e9) return `${(value / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${(value / 1e6).toFixed(2)}M`;
+  if (abs >= 1e3) return `${(value / 1e3).toFixed(2)}K`;
+  return value.toFixed(2);
+}
+
+function EarningsCard({ metadata }: { metadata: MessageMetadata }) {
+  const cs = metadata.chart_series;
+  const ticker = metadata.ticker ?? "";
+
+  const quarterlyData =
+    cs?.quarterly?.labels?.map((label, i) => ({
+      label: label.slice(0, 7),
+      revenue: cs.quarterly!.revenue[i] ?? 0,
+      earnings: cs.quarterly!.earnings[i] ?? 0,
+      profit_margin: cs.quarterly!.profit_margin[i],
+      operating_margin: cs.quarterly!.operating_margin[i],
+    })) ?? [];
+
+  const epsSurpriseData =
+    cs?.eps_surprise?.dates?.map((date, i) => ({
+      date: date.slice(0, 7),
+      actual: cs.eps_surprise!.eps_actual[i] ?? 0,
+      estimate: cs.eps_surprise!.eps_estimate[i] ?? 0,
+      surprise: cs.eps_surprise!.surprise_percent[i],
+    })) ?? [];
+
+  return (
+    <div className="bg-slate-950/85 border border-amber-500/30 rounded-2xl p-4 shadow-[0_18px_45px_rgba(15,23,42,0.95)] w-full">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="font-mono font-semibold text-slate-50 text-base tracking-tight">
+          {ticker}
+        </span>
+        <span className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+          Earnings &amp; Revenue
+        </span>
+      </div>
+
+      {quarterlyData.length > 0 && (
+        <div className="mt-3">
+          <div className="text-xs text-amber-300/90 mb-2 font-medium">
+            Quarterly Revenue &amp; Net Income
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={quarterlyData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                stroke="#1e293b"
+                tickLine={false}
+                axisLine={false}
+                dy={8}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                stroke="#1e293b"
+                tickLine={false}
+                axisLine={false}
+                width={42}
+                tickFormatter={(v) => formatMillions(v)}
+                dx={-8}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#020617",
+                  border: "1px solid #1f2937",
+                  borderRadius: "0.5rem",
+                  fontSize: "12px",
+                  color: "#e5e7eb",
+                }}
+                formatter={(value: number) => [formatMillions(value), ""]}
+                labelFormatter={(label) => `Period ${label}`}
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="revenue" fill="#f59e0b" name="Revenue" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="earnings" fill="#22c55e" name="Net Income" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {quarterlyData.some((d) => d.profit_margin != null || d.operating_margin != null) && (
+        <div className="mt-4">
+          <div className="text-xs text-amber-300/90 mb-2 font-medium">
+            Margins (%)
+          </div>
+          <ResponsiveContainer width="100%" height={140}>
+            <LineChart data={quarterlyData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                stroke="#1e293b"
+                tickLine={false}
+                axisLine={false}
+                dy={8}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                stroke="#1e293b"
+                tickLine={false}
+                axisLine={false}
+                width={36}
+                tickFormatter={(v) => `${v}%`}
+                domain={[0, "auto"]}
+                dx={-8}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#020617",
+                  border: "1px solid #1f2937",
+                  borderRadius: "0.5rem",
+                  fontSize: "12px",
+                  color: "#e5e7eb",
+                }}
+                formatter={(value: unknown) => [typeof value === "number" && !Number.isNaN(value) ? `${value.toFixed(1)}%` : "—", ""]}
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Line
+                type="monotone"
+                dataKey="profit_margin"
+                stroke="#a78bfa"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="Profit Margin"
+                connectNulls
+              />
+              <Line
+                type="monotone"
+                dataKey="operating_margin"
+                stroke="#38bdf8"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+                name="Operating Margin"
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {epsSurpriseData.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs text-amber-300/90 mb-2 font-medium">
+            EPS: Actual vs Estimate
+          </div>
+          <ResponsiveContainer width="100%" height={160}>
+            <BarChart data={epsSurpriseData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                stroke="#1e293b"
+                tickLine={false}
+                axisLine={false}
+                dy={8}
+              />
+              <YAxis
+                tick={{ fontSize: 10, fill: "#64748b" }}
+                stroke="#1e293b"
+                tickLine={false}
+                axisLine={false}
+                width={40}
+                dx={-8}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#020617",
+                  border: "1px solid #1f2937",
+                  borderRadius: "0.5rem",
+                  fontSize: "12px",
+                  color: "#e5e7eb",
+                }}
+                formatter={(value: number) => [value?.toFixed(2) ?? "—", ""]}
+              />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="actual" fill="#22c55e" name="Actual" radius={[2, 2, 0, 0]} />
+              <Bar dataKey="estimate" fill="#64748b" name="Estimate" radius={[2, 2, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {quarterlyData.length === 0 && epsSurpriseData.length === 0 && (
+        <div className="text-xs text-slate-400 py-2">No chart data available.</div>
       )}
     </div>
   );

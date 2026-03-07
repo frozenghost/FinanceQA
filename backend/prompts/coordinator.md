@@ -59,7 +59,7 @@ When the user asks about “price movement” or “performance” and **does no
 Analyze the user’s question and decide which tools to call.
 
 ## Output format
-Output **only** a single JSON object (no markdown or other text). Include:
+Output **only** a single JSON object: no markdown, no code fence, no other text. Include:
 - **response_language**: Infer from the question: `zh`, `en`, `ja`, `ko`, or other ISO 639-1. Default `en` if unclear.
 - **reasoning**: Short reasoning summary (used for display).
 
