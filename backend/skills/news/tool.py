@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from config.settings import settings
 from services.cache_service import cached
+from skills.common import run_sync, validate_non_empty
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,7 @@ class GetFinancialNewsInput(BaseModel):
     @field_validator("query")
     @classmethod
     def query_not_empty(cls, v: str) -> str:
-        t = (v or "").strip()
-        if not t:
-            raise ValueError("query must be non-empty")
-        return t
+        return validate_non_empty(v, "query")
 
 
 def _merge_articles(
@@ -128,7 +126,6 @@ async def get_financial_news(query: str, page_size: int = 10) -> dict:
         logger.warning("Neither SerpAPI nor Tavily key configured")
         return {"error": "Neither SerpAPI nor Tavily key configured; cannot fetch news"}
 
-    loop = asyncio.get_event_loop()
     serpapi_articles: list[dict] = []
     serpapi_url_to_content: dict[str, str] = {}
     tavily_results: list[dict] = []
@@ -176,8 +173,7 @@ async def get_financial_news(query: str, page_size: int = 10) -> dict:
         if urls_to_extract:
             try:
                 extract_res = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None,
+                    run_sync(
                         lambda: _run_tavily_extract(urls_to_extract, query),
                     ),
                     timeout=30.0,
@@ -196,8 +192,7 @@ async def get_financial_news(query: str, page_size: int = 10) -> dict:
         # Tavily search for related news
         try:
             search_res = await asyncio.wait_for(
-                loop.run_in_executor(
-                    None,
+                run_sync(
                     lambda: _run_tavily_search(query, max_results=page_size),
                 ),
                 timeout=15.0,

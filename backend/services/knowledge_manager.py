@@ -5,7 +5,7 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, Union
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -37,7 +37,7 @@ FETCHER_REGISTRY: dict[str, type[BaseFetcher]] = {
 class KnowledgeManager:
     """Manages knowledge base refresh with configurable sources."""
 
-    def __init__(self, config_path: str | Path | None = None):
+    def __init__(self, config_path: Optional[Union[str, Path]] = None) -> None:
         """Initialize knowledge manager.
         
         Args:
@@ -61,7 +61,7 @@ class KnowledgeManager:
         logger.info(f"Loaded knowledge sources config from {self.config_path}")
         return config
 
-    def _create_splitter(self, source_name: str | None) -> RecursiveCharacterTextSplitter:
+    def _create_splitter(self, source_name: Optional[str]) -> RecursiveCharacterTextSplitter:
         """Create text splitter from config; use by_source[source_name] if present else global chunking."""
         chunking = self.config.get("chunking", {})
         base = dict(chunking)
@@ -95,7 +95,7 @@ class KnowledgeManager:
             persist_directory=persist_dir,
         )
 
-    def _create_fetcher(self, source_config: dict[str, Any]) -> BaseFetcher | None:
+    def _create_fetcher(self, source_config: dict[str, Any]) -> Optional[BaseFetcher]:
         """Create a fetcher instance from source configuration.
         
         Args:

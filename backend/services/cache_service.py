@@ -9,6 +9,7 @@ import functools
 import hashlib
 import json
 import logging
+from typing import Optional
 
 import redis
 
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 # ── Redis connection (fail-open) ──────────────────────────────
 try:
-    _r = redis.Redis(
+    _r: Optional[redis.Redis] = redis.Redis(
         host=settings.REDIS_HOST,
         port=settings.REDIS_PORT,
         decode_responses=True,
@@ -29,11 +30,11 @@ try:
     logger.info("Redis connected")
 except Exception:
     logger.warning("Redis unavailable; cache layer degraded to direct mode")
-    _r = None  # type: ignore[assignment]
+    _r = None
     REDIS_AVAILABLE = False
 
 
-def get_redis():
+def get_redis() -> Optional[redis.Redis]:
     """Return the shared Redis client for use by other modules (e.g. embedding cache)."""
     return _r
 

@@ -11,6 +11,7 @@ Usage:
 import argparse
 import sys
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -19,7 +20,7 @@ from config.settings import settings
 HF_MODEL_ID = "BAAI/bge-reranker-base"
 
 
-def download_and_convert(output_dir: str | None = None):
+def download_and_convert(output_dir: Optional[str] = None) -> None:
     """Download the HuggingFace model and export to ONNX format."""
     model_dir = Path(output_dir or settings.RERANKER_MODEL_DIR)
     model_dir.mkdir(parents=True, exist_ok=True)

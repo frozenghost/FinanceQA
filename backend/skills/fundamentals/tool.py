@@ -1,6 +1,8 @@
 """Fundamentals skill — company financials, valuation metrics, and earnings data."""
 
+import asyncio
 import logging
+from typing import Any, Optional
 
 import pandas as pd
 import yfinance as yf
@@ -8,6 +10,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
 
 from services.cache_service import cached
+from skills.common import run_sync, validate_non_empty
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +23,7 @@ class GetCompanyFundamentalsInput(BaseModel):
     @field_validator("ticker")
     @classmethod
     def ticker_not_empty(cls, v: str) -> str:
-        t = (v or "").strip()
-        if not t:
-            raise ValueError("ticker must be non-empty")
-        return t
+        return validate_non_empty(v, "ticker")
 
 
 class GetEarningsHistoryInput(BaseModel):
@@ -34,10 +34,7 @@ class GetEarningsHistoryInput(BaseModel):
     @field_validator("ticker")
     @classmethod
     def ticker_not_empty(cls, v: str) -> str:
-        t = (v or "").strip()
-        if not t:
-            raise ValueError("ticker must be non-empty")
-        return t
+        return validate_non_empty(v, "ticker")
 
 
 @tool(args_schema=GetCompanyFundamentalsInput)
@@ -50,12 +47,10 @@ async def get_company_fundamentals(ticker: str) -> dict:
     Suitable for fundamental analysis, valuation assessment, and financial health evaluation.
     """
     logger.info(f"[get_company_fundamentals] Starting to fetch fundamentals for {ticker}")
-    
+
     try:
-        import asyncio
-        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        info = await loop.run_in_executor(None, lambda: tk.info)
+        info = await run_sync(lambda: tk.info)
 
         if not info:
             logger.warning(f"[get_company_fundamentals] No fundamentals found for {ticker}")
@@ -118,7 +113,7 @@ async def get_company_fundamentals(ticker: str) -> dict:
         return {"error": f"Failed to fetch fundamentals: {str(e)}"}
 
 
-def _safe_get(df: pd.DataFrame, row_names: list[str], col) -> float | None:
+def _safe_get(df: pd.DataFrame, row_names: list[str], col: Any) -> Optional[float]:
     for name in row_names:
         if name in df.index:
             val = df.loc[name, col]
@@ -130,7 +125,9 @@ def _safe_get(df: pd.DataFrame, row_names: list[str], col) -> float | None:
     return None
 
 
-def _income_quarter(income_df: pd.DataFrame, col, date_fmt: str = "%Y-%m-%d") -> dict | None:
+def _income_quarter(
+    income_df: pd.DataFrame, col: Any, date_fmt: str = "%Y-%m-%d"
+) -> Optional[dict]:
     if income_df is None or income_df.empty:
         return None
     date_str = col.strftime(date_fmt) if hasattr(col, "strftime") else str(col)
@@ -170,16 +167,12 @@ async def get_earnings_history(ticker: str) -> dict:
     logger.info(f"[get_earnings_history] Starting to fetch earnings history for {ticker}")
 
     try:
-        import asyncio
-
-        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-
         quarterly_income, annual_income, earnings_hist_df, earnings_dates_df = await asyncio.gather(
-            loop.run_in_executor(None, lambda: tk.quarterly_income_stmt),
-            loop.run_in_executor(None, lambda: tk.income_stmt),
-            loop.run_in_executor(None, lambda: tk.get_earnings_history()),
-            loop.run_in_executor(None, lambda: tk.get_earnings_dates(limit=16)),
+            run_sync(lambda: tk.quarterly_income_stmt),
+            run_sync(lambda: tk.income_stmt),
+            run_sync(lambda: tk.get_earnings_history()),
+            run_sync(lambda: tk.get_earnings_dates(limit=16)),
         )
 
         result = {

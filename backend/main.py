@@ -2,10 +2,14 @@
 
 import logging
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.routes.admin import router as admin_router
+from api.routes.market import router as market_router
+from api.routes.query import router as query_router
 from config.settings import settings
 
 logging.basicConfig(
@@ -52,18 +56,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API routes
-from api.routes.query import router as query_router
-from api.routes.market import router as market_router
-from api.routes.admin import router as admin_router
-
 app.include_router(query_router, tags=["Query"])
 app.include_router(market_router, tags=["Market"])
 app.include_router(admin_router, tags=["Admin"])
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, Any]:
     return {
         "name": "Finance QA System",
         "version": "0.1.0",

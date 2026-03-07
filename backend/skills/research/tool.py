@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from config.settings import settings
 from services.cache_service import cached
+from skills.common import validate_non_empty
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +20,6 @@ VECTOR_CANDIDATES_MULTIPLIER = 3
 BM25_TOP_MULTIPLIER = 2
 RERANK_MAX_LENGTH = 512
 MIN_RERANK_SCORE = -2.0  # drop chunks with very low rerank score (likely wrong concept)
-
-
-def _validate_non_empty_query(v: str) -> str:
-    t = (v or "").strip()
-    if not t:
-        raise ValueError("query must be non-empty")
-    return t
 
 
 class SearchKnowledgeBaseInput(BaseModel):
@@ -37,7 +31,7 @@ class SearchKnowledgeBaseInput(BaseModel):
     @field_validator("query")
     @classmethod
     def query_not_empty(cls, v: str) -> str:
-        return _validate_non_empty_query(v)
+        return validate_non_empty(v, "query")
 
 
 class SearchWebInput(BaseModel):
@@ -49,7 +43,7 @@ class SearchWebInput(BaseModel):
     @field_validator("query")
     @classmethod
     def query_not_empty(cls, v: str) -> str:
-        return _validate_non_empty_query(v)
+        return validate_non_empty(v, "query")
 
 
 # BGE-reranker-v2-m3 ONNX singleton

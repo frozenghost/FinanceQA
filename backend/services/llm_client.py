@@ -1,10 +1,12 @@
 """OpenRouter LLM client. Reuses the openai SDK with a custom base_url."""
 
-from openai import AsyncOpenAI
-from langchain_openai import ChatOpenAI
+from typing import Optional
 
-from config.settings import settings
+from langchain_openai import ChatOpenAI
+from openai import AsyncOpenAI
+
 from config.models import MODEL_ROUTING
+from config.settings import settings
 
 
 class LLMClient:
@@ -33,7 +35,7 @@ class LLMClient:
     async def chat_raw(
         self,
         messages: list,
-        model: str | None = None,
+        model: Optional[str] = None,
         stream: bool = True,
     ):
         """Direct call for non-Agent scenarios like router classification."""

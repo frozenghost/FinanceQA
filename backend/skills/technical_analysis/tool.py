@@ -1,7 +1,6 @@
 """Technical analysis skill — indicators, patterns, and signals."""
 
 import logging
-import re
 
 import pandas as pd
 import yfinance as yf
@@ -9,11 +8,9 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator
 
 from services.cache_service import cached
+from skills.common import DATE_PATTERN, VALID_INTERVALS, run_sync, validate_non_empty
 
 logger = logging.getLogger(__name__)
-
-DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-VALID_INTERVALS = ("1d", "1wk", "1mo")
 
 
 class CalculateTechnicalIndicatorsInput(BaseModel):
@@ -27,10 +24,7 @@ class CalculateTechnicalIndicatorsInput(BaseModel):
     @field_validator("ticker")
     @classmethod
     def ticker_not_empty(cls, v: str) -> str:
-        t = (v or "").strip()
-        if not t:
-            raise ValueError("ticker must be non-empty")
-        return t
+        return validate_non_empty(v, "ticker")
 
     @field_validator("start", "end")
     @classmethod
@@ -74,20 +68,17 @@ async def calculate_technical_indicators(
     - calculate_technical_indicators("AAPL", start="2023-01-01", end="2024-01-01")  # 1 year of data
     """
     try:
-        import asyncio
         import pandas_ta as ta
 
         time_range = f"start={start}, end={end}"
         logger.info(
             f"[calculate_technical_indicators] Start calculating indicators for {ticker}: "
-            f"start={start}, end={end}, interval={interval}"
+            f"{time_range}, interval={interval}"
         )
-
-        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        
-        # Fetch historical data
-        hist = await loop.run_in_executor(None, lambda: tk.history(start=start, end=end, interval=interval))
+        hist = await run_sync(
+            lambda: tk.history(start=start, end=end, interval=interval)
+        )
 
         if hist.empty:
             return {"error": f"No historical data found for {ticker}"}

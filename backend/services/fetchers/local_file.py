@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from langchain_core.documents import Document
 
@@ -81,7 +81,7 @@ class LocalFileFetcher(BaseFetcher):
         )
         return docs
 
-    def _load_file(self, file_path: Path) -> Document | None:
+    def _load_file(self, file_path: Path) -> Optional[Document]:
         """Load a single file based on its extension."""
         ext = file_path.suffix.lower()
         
@@ -107,7 +107,7 @@ class LocalFileFetcher(BaseFetcher):
         text = file_path.read_text(encoding=self.encoding, errors="replace")
         return Document(page_content=text, metadata=metadata)
 
-    def _load_docx_file(self, file_path: Path, metadata: dict) -> Document | None:
+    def _load_docx_file(self, file_path: Path, metadata: dict) -> Optional[Document]:
         """Load Microsoft Word document."""
         try:
             import docx
@@ -127,7 +127,7 @@ class LocalFileFetcher(BaseFetcher):
         
         return None
 
-    def _load_pdf_file(self, file_path: Path, metadata: dict) -> Document | None:
+    def _load_pdf_file(self, file_path: Path, metadata: dict) -> Optional[Document]:
         """Load PDF document."""
         try:
             import fitz  # pymupdf

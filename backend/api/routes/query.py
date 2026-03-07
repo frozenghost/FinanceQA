@@ -3,11 +3,12 @@
 import json
 import logging
 import uuid
+from typing import Optional
 
 import json_repair
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
 from pydantic import BaseModel
 
 from core.agent.graph import get_agent
@@ -18,12 +19,12 @@ router = APIRouter()
 
 class QueryRequest(BaseModel):
     message: str
-    history: list[dict] | None = None
-    thread_id: str | None = None
+    history: Optional[list[dict]] = None
+    thread_id: Optional[str] = None
 
 
 @router.post("/api/query")
-async def query_agent(req: QueryRequest):
+async def query_agent(req: QueryRequest) -> StreamingResponse:
     """Stream agent response via SSE (Server-Sent Events)."""
 
     async def event_stream():
@@ -35,8 +36,6 @@ async def query_agent(req: QueryRequest):
                 if msg.get("role") == "user":
                     messages.append(HumanMessage(content=msg["content"]))
                 elif msg.get("role") == "assistant":
-                    from langchain_core.messages import AIMessage
-
                     messages.append(AIMessage(content=msg["content"]))
 
         messages.append(HumanMessage(content=req.message))

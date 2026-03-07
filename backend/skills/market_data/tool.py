@@ -1,19 +1,22 @@
 """Market data skill — real-time quotes and historical OHLCV data."""
 
 import logging
-import re
+from typing import Optional
 
 import yfinance as yf
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.cache_service import cached
+from skills.common import (
+    DATE_PATTERN,
+    VALID_INTERVALS,
+    VALID_PERIODS,
+    run_sync,
+    validate_non_empty,
+)
 
 logger = logging.getLogger(__name__)
-
-VALID_INTERVALS = ("1d", "1wk", "1mo")
-VALID_PERIODS = ("1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "max")
-DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 class GetRealTimeQuoteInput(BaseModel):
@@ -24,25 +27,22 @@ class GetRealTimeQuoteInput(BaseModel):
     @field_validator("ticker")
     @classmethod
     def ticker_not_empty(cls, v: str) -> str:
-        t = (v or "").strip()
-        if not t:
-            raise ValueError("ticker must be non-empty")
-        return t
+        return validate_non_empty(v, "ticker")
 
 
 class GetHistoricalPricesInput(BaseModel):
     """Schema for get_historical_prices."""
 
     ticker: str = Field(description="Stock symbol")
-    period: str | None = Field(
+    period: Optional[str] = Field(
         default=None,
         description="Time range: 1d/5d/1mo/3mo/6mo/1y/2y/5y/max (mutually exclusive with start/end)",
     )
-    start: str | None = Field(
+    start: Optional[str] = Field(
         default=None,
         description="Start date YYYY-MM-DD (use with end, mutually exclusive with period)",
     )
-    end: str | None = Field(
+    end: Optional[str] = Field(
         default=None,
         description="End date YYYY-MM-DD (use with start, mutually exclusive with period)",
     )
@@ -51,10 +51,7 @@ class GetHistoricalPricesInput(BaseModel):
     @field_validator("ticker")
     @classmethod
     def ticker_not_empty(cls, v: str) -> str:
-        t = (v or "").strip()
-        if not t:
-            raise ValueError("ticker must be non-empty")
-        return t
+        return validate_non_empty(v, "ticker")
 
     @model_validator(mode="after")
     def validate_time_range(self):
@@ -83,12 +80,10 @@ async def get_real_time_quote(ticker: str) -> dict:
     Suitable for quick checks of current price and intraday performance.
     """
     logger.info(f"[get_real_time_quote] Start fetching real-time quote for {ticker}")
-    
+
     try:
-        import asyncio
-        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        info = await loop.run_in_executor(None, lambda: tk.info)
+        info = await run_sync(lambda: tk.info)
 
         if not info or "currentPrice" not in info:
             logger.warning(f"[get_real_time_quote] No real-time quote data found for {ticker}")
@@ -131,9 +126,9 @@ async def get_real_time_quote(ticker: str) -> dict:
 @cached(key_prefix="ohlcv", ttl=3600)
 async def get_historical_prices(
     ticker: str,
-    period: str | None = None,
-    start: str | None = None,
-    end: str | None = None,
+    period: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
     interval: str = "1d",
 ) -> dict:
     """
@@ -165,15 +160,11 @@ async def get_historical_prices(
         )
     
     try:
-        import asyncio
-        loop = asyncio.get_event_loop()
         tk = yf.Ticker(ticker)
-        
-        # Fetch history based on the chosen parameter mode
         if period:
-            hist = await loop.run_in_executor(None, lambda: tk.history(period=period, interval=interval))
+            hist = await run_sync(lambda: tk.history(period=period, interval=interval))
         else:
-            hist = await loop.run_in_executor(None, lambda: tk.history(start=start, end=end, interval=interval))
+            hist = await run_sync(lambda: tk.history(start=start, end=end, interval=interval))
 
         if hist.empty:
             logger.warning(f"[get_historical_prices] No historical data found for {ticker}")

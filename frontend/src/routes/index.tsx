@@ -1,6 +1,6 @@
 import { createRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Send } from "lucide-react";
+import { Send, TrendingUp } from "lucide-react";
 import { rootRoute } from "./__root";
 import { chatStorage } from "../services/chatStorage";
 
@@ -84,7 +84,7 @@ function WelcomePage() {
         <div className="max-w-3xl mx-auto">
           <div className="flex flex-col items-center justify-center min-h-[60vh] animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-[0_22px_55px_rgba(16,185,129,0.75)] border border-emerald-400/70 bg-slate-950">
-              <span className="text-2xl">💬</span>
+              <TrendingUp className="w-8 h-8 text-emerald-400" strokeWidth={2} />
             </div>
             <h1 className="text-2xl font-semibold text-slate-50 mb-3 tracking-tight">
               Hi, I'm your financial assistant
