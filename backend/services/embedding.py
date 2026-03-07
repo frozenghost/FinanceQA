@@ -10,71 +10,21 @@ Configuration for base URL:
   - EMBEDDING_BASE_URL="https://openrouter.ai/api/v1" → OpenRouter
   - Any other OpenAI-compatible endpoint
 
-When Redis is available, embed_query and embed_documents are cached to reduce API calls.
+When Redis is available, embed_query and embed_documents are cached via LangChain
+CacheBackedEmbeddings + RedisStore to reduce API calls.
 """
 
-import hashlib
-import json
 import logging
 
 from langchain_core.embeddings import Embeddings
 from langchain_openai import OpenAIEmbeddings
+from langchain_community.storage import RedisStore
 
+from langchain_classic.embeddings import CacheBackedEmbeddings
 from config.settings import settings
-from services.cache_service import REDIS_AVAILABLE, get_redis
+from services.cache_service import REDIS_AVAILABLE
 
 logger = logging.getLogger(__name__)
-
-EMBED_CACHE_PREFIX = "emb"
-EMBED_KEY_HASH_LEN = 16
-
-
-class CachedEmbeddings(Embeddings):
-    """Wraps an Embeddings instance and caches results in Redis."""
-
-    def __init__(self, underlying: Embeddings, model_name: str, ttl: int):
-        self._underlying = underlying
-        self._model_name = model_name
-        self._ttl = ttl
-
-    def _key(self, input_str: str) -> str:
-        h = hashlib.md5(input_str.encode()).hexdigest()[:EMBED_KEY_HASH_LEN]
-        return f"{EMBED_CACHE_PREFIX}:{self._model_name}:{h}"
-
-    def embed_query(self, text: str) -> list[float]:
-        r = get_redis()
-        if REDIS_AVAILABLE and r is not None:
-            key = self._key(text)
-            try:
-                if cached := r.get(key):
-                    return json.loads(cached)
-            except Exception as e:
-                logger.warning("Embedding cache read error: %s", e)
-        result = self._underlying.embed_query(text)
-        if REDIS_AVAILABLE and r is not None:
-            try:
-                r.setex(key, self._ttl, json.dumps(result))
-            except Exception as e:
-                logger.warning("Embedding cache write error: %s", e)
-        return result
-
-    def embed_documents(self, texts: list[str]) -> list[list[float]]:
-        r = get_redis()
-        raw = json.dumps(texts, sort_keys=True)
-        if REDIS_AVAILABLE and r is not None:
-            key = self._key(raw)
-            try:
-                if cached := r.get(key):
-                    return json.loads(cached)
-            except Exception as e:
-                logger.warning("Embedding cache read error: %s", e)
-        result = self._underlying.embed_documents(texts)
-        if REDIS_AVAILABLE and r is not None:
-            try:
-                r.setex(key, self._ttl, json.dumps(result))
-            except Exception as e:
-                logger.warning("Embedding cache write error: %s", e)
-        return result
 
 
 def _create_openai_embeddings() -> OpenAIEmbeddings:
@@ -108,8 +58,21 @@ def _create_openai_embeddings() -> OpenAIEmbeddings:
 def get_embeddings() -> Embeddings:
     """Return embeddings with Redis cache when available. Uses CACHE_TTL_EMBEDDING for TTL."""
     raw = _create_openai_embeddings()
-    return CachedEmbeddings(
-        raw,
-        model_name=settings.EMBEDDING_MODEL,
-        ttl=settings.CACHE_TTL_EMBEDDING,
-    )
+    if not REDIS_AVAILABLE:
+        return raw
+    try:
+        redis_url = f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}"
+        store = RedisStore(
+            redis_url=redis_url,
+            ttl=settings.CACHE_TTL_EMBEDDING,
+            namespace=f"emb:{settings.EMBEDDING_MODEL}",
+        )
+        return CacheBackedEmbeddings.from_bytes_store(
+            underlying_embeddings=raw,
+            document_embedding_cache=store,
+            namespace=settings.EMBEDDING_MODEL,
+            query_embedding_cache=True,
+        )
+    except Exception as e:
+        logger.warning("Embedding Redis cache disabled: %s", e)
+        return raw
