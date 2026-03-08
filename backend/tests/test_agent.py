@@ -68,12 +68,11 @@ class TestModelRouting:
     """Tests for model routing configuration."""
 
     def test_model_routing_has_required_roles(self):
-        """MODEL_ROUTING should have router, market_analyst, and rag_qa."""
+        """MODEL_ROUTING should have market_analyst and coordinator."""
         from config.models import MODEL_ROUTING
 
-        assert "router" in MODEL_ROUTING
         assert "market_analyst" in MODEL_ROUTING
-        assert "rag_qa" in MODEL_ROUTING
+        assert "coordinator" in MODEL_ROUTING
 
     def test_model_routing_values_are_strings(self):
         """All model routing values should be non-empty strings."""

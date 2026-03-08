@@ -14,9 +14,8 @@ class Settings(BaseSettings):
 
     # ── LLM (OpenRouter) ─────────────────────────────────────
     OPENROUTER_API_KEY: str = ""
-    DEFAULT_MODEL: str = "anthropic/claude-3.5-sonnet"
-    ROUTER_MODEL: str = "openai/gpt-4o-mini"
-    RAG_MODEL: str = "openai/gpt-4o-mini"
+    DEFAULT_MODEL: str = "anthropic/claude-3.5-sonnet"      # main agent, analysis
+    COORDINATOR_MODEL: str = "openai/gpt-4o-mini"          # coordinator, tool planning
     APP_URL: str = "http://localhost:5173"
 
     # ── Data API ──────────────────────────────────────────────

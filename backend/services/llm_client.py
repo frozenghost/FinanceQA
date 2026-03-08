@@ -39,9 +39,9 @@ class LLMClient:
         model: Optional[str] = None,
         stream: bool = True,
     ):
-        """Direct call for non-Agent scenarios like router classification."""
+        """Direct call for non-Agent scenarios (e.g. router classification)."""
         return await self._async_client.chat.completions.create(
-            model=model or MODEL_ROUTING["router"],
+            model=model or MODEL_ROUTING["market_analyst"],
             messages=messages,
             stream=stream,
             temperature=0.1,
