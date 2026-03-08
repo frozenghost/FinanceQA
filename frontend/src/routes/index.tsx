@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Send, TrendingUp } from "lucide-react";
 import { rootRoute } from "./__root";
 import { chatStorage } from "../services/chatStorage";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 function WelcomePage() {
   const navigate = useNavigate();
@@ -63,17 +64,7 @@ function WelcomePage() {
   if (isRedirecting) {
     return (
       <div className="flex flex-1 items-center justify-center">
-        <div className="flex gap-2 items-center text-slate-400">
-          <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
-          <div
-            className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
-            style={{ animationDelay: "150ms" }}
-          />
-          <div
-            className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
-            style={{ animationDelay: "300ms" }}
-          />
-        </div>
+        <LoadingSpinner />
       </div>
     );
   }
@@ -138,6 +129,7 @@ function WelcomePage() {
                 disabled={!input.trim()}
                 className="p-2.5 bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-400 rounded-xl transition-colors shadow-[0_16px_40px_rgba(16,185,129,0.7)] disabled:shadow-none border border-emerald-400/80 disabled:border-slate-600/80"
                 title="Send"
+                aria-label="Send message"
               >
                 <Send className="w-5 h-5" />
               </button>

@@ -139,6 +139,7 @@ function ConversationPage() {
                   onClick={stop}
                   className="p-2.5 bg-slate-800/80 text-slate-200 hover:bg-slate-700 rounded-xl transition-colors border border-slate-600/80"
                   title="Stop generating"
+                  aria-label="Stop generating"
                 >
                   <Square className="w-5 h-5 fill-slate-400" />
                 </button>
@@ -148,6 +149,7 @@ function ConversationPage() {
                   disabled={!input.trim()}
                   className="p-2.5 bg-emerald-500 text-slate-950 hover:bg-emerald-400 disabled:bg-slate-700 disabled:text-slate-400 rounded-xl transition-colors shadow-[0_16px_40px_rgba(16,185,129,0.7)] disabled:shadow-none border border-emerald-400/80 disabled:border-slate-600/80"
                   title="Send"
+                  aria-label="Send message"
                 >
                   <Send className="w-5 h-5" />
                 </button>

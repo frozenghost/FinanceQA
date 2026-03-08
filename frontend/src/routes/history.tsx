@@ -3,6 +3,7 @@ import { rootRoute } from "./__root";
 import { Clock, Trash2, MessageSquare, ChevronRight } from "lucide-react";
 import { useChatHistory } from "../hooks/useChatHistory";
 import { useState } from "react";
+import { LoadingSpinner } from "../components/LoadingSpinner";
 
 function HistoryPage() {
   const navigate = useNavigate();
@@ -77,18 +78,7 @@ function HistoryPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24">
-            <div className="flex gap-2 items-center text-slate-400">
-              <div className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce" />
-              <div
-                className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
-                style={{ animationDelay: "150ms" }}
-              />
-              <div
-                className="w-2 h-2 bg-emerald-400 rounded-full animate-bounce"
-                style={{ animationDelay: "300ms" }}
-              />
-              <span className="ml-2 text-sm">Loading...</span>
-            </div>
+            <LoadingSpinner label="Loading..." />
           </div>
         ) : conversations.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 bg-slate-900/40 rounded-3xl border border-slate-800/70 border-dashed">
@@ -128,6 +118,7 @@ function HistoryPage() {
                       onClick={(e) => handleDelete(e, conv.id)}
                       className="p-2 text-slate-500 hover:text-pink-300 hover:bg-pink-500/10 rounded-lg transition-colors"
                       title="Delete"
+                      aria-label="Delete conversation"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -141,9 +132,14 @@ function HistoryPage() {
 
       {/* Confirm clear dialog */}
       {showConfirm && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="clear-history-title"
+        >
           <div className="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 max-w-md w-full mx-4 shadow-[0_30px_80px_rgba(15,23,42,0.95)]">
-            <h3 className="text-lg font-semibold text-slate-50 mb-2">
+            <h3 id="clear-history-title" className="text-lg font-semibold text-slate-50 mb-2">
               Clear all history?
             </h3>
             <p className="text-sm text-slate-400 mb-6">

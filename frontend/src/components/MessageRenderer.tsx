@@ -2,7 +2,7 @@
  * MessageRenderer — renders chat messages with Markdown, data cards, and step folding.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -514,25 +514,20 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
 }
 
 function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordinator"] }) {
-  const [open, setOpen] = useState(true); // Default to open
-  const [hasCollapsed, setHasCollapsed] = useState(false);
+  const [open, setOpen] = useState(true);
+  const isComplete = coordinator?.isComplete === true;
+
+  useEffect(() => {
+    if (!isComplete) return;
+    const t = setTimeout(() => {
+      setOpen(false);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [isComplete]);
 
   if (!coordinator) return null;
-
-  // Check if we have valid coordinator data
   const hasReasoning = coordinator.reasoning && coordinator.reasoning.trim().length > 0;
-  const isComplete = coordinator.isComplete === true;
-
   if (!hasReasoning) return null;
-
-  // Auto-collapse when thinking is complete
-  if (open && !hasCollapsed && isComplete) {
-    // Use setTimeout to avoid state update during render
-    setTimeout(() => {
-      setOpen(false);
-      setHasCollapsed(true);
-    }, 500); // Small delay to let user see the complete thinking
-  }
 
   return (
     <div className="border border-pink-500/30 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(236,72,153,0.16)] bg-gradient-to-br from-pink-950/40 to-slate-950/40 backdrop-blur-2xl">
