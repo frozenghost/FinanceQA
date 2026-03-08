@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import re
+from datetime import datetime
 from typing import Annotated, Any, Optional
 
 import httpx
@@ -49,7 +50,9 @@ def _run_tavily_search(query: str, max_results: int) -> dict[str, Any]:
 class GetFinancialNewsInput(BaseModel):
     """Schema for get_financial_news."""
 
-    query: str = Field(description="Search keywords: company name, industry, event, etc.")
+    query: str = Field(
+        description="Topic only: company name, industry, event, etc. Do not add time range; use analysis_start/analysis_end from state."
+    )
     page_size: int = Field(default=10, ge=1, le=20, description="Number of news items to return")
 
     @field_validator("query")
@@ -133,13 +136,10 @@ async def get_financial_news(
     Returns articles with title, source, url, content, and a ready-made Markdown link per
     article (field "link"). When presenting news in your answer, you must include the
     "link" for every article so users get a clickable link for each item.
-    - query: Search keywords, e.g. company name, industry, event.
+    - query: Topic only (e.g. company name, industry, event). Do not add time range;
+      time scope is applied via analysis_start/analysis_end from state.
     - page_size: Number of news items to return, default 10.
     """
-    if analysis_start and analysis_end:
-        if not re.search(r"20\d{2}", query):
-            query = f"{query} {analysis_start[:7]} {analysis_end[:7]}"
-        logger.info("get_financial_news: time-scoped query=%r", query)
     logger.info("get_financial_news called: query=%r, page_size=%s", query, page_size)
     if not settings.SERPAPI_KEY and not settings.TAVILY_API_KEY:
         logger.warning("Neither SerpAPI nor Tavily key configured")
@@ -151,10 +151,20 @@ async def get_financial_news(
 
     if settings.SERPAPI_KEY:
         try:
+            search_query = query
+            if analysis_start and analysis_end:
+                search_query = f"{query} after:{analysis_start} before:{analysis_end}"
+            elif analysis_start:
+                search_query = f"{query} after:{analysis_start}"
+            elif analysis_end:
+                search_query = f"{query} before:{analysis_end}"
+            if analysis_start or analysis_end:
+                logger.info("Date-scoped query=%r", search_query)
+
             async with httpx.AsyncClient(timeout=30.0) as client:
                 params = {
                     "engine": "google_news",
-                    "q": query,
+                    "q": search_query,
                     "api_key": settings.SERPAPI_KEY,
                     "num": page_size,
                     "gl": "us",
@@ -164,8 +174,34 @@ async def get_financial_news(
                 response.raise_for_status()
                 data = response.json()
 
-            raw_list = data.get("news_results", [])[:page_size]
-            logger.info("SerpAPI Google News returned %d raw items", len(raw_list))
+            raw_list = data.get("news_results", [])
+            
+            if analysis_start or analysis_end:
+                start_dt = None
+                end_dt = None
+                if analysis_start:
+                    start_dt = datetime.strptime(analysis_start, "%Y-%m-%d")
+                if analysis_end:
+                    end_dt = datetime.strptime(analysis_end, "%Y-%m-%d")
+                filtered_list = []
+                for item in raw_list:
+                    iso_date_str = item.get("iso_date", "")
+                    if iso_date_str:
+                        try:
+                            item_dt = datetime.fromisoformat(iso_date_str.replace("Z", "+00:00"))
+                            item_dt = item_dt.replace(tzinfo=None)
+                            if start_dt and item_dt < start_dt:
+                                continue
+                            if end_dt and item_dt > end_dt:
+                                continue
+                        except ValueError:
+                            pass
+                    filtered_list.append(item)
+                raw_list = filtered_list[:page_size]
+            else:
+                raw_list = raw_list[:page_size]
+            
+            logger.info("SerpAPI Google News returned %d filtered items", len(raw_list))
             for item in raw_list:
                 link = (item.get("link") or "").strip()
                 if not _is_valid_article_url(link):
