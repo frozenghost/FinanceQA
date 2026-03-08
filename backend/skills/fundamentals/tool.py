@@ -62,7 +62,10 @@ async def get_company_fundamentals(ticker: str) -> dict:
         info = await run_sync(lambda: tk.info)
 
         if not info:
-            logger.warning(f"[get_company_fundamentals] No fundamentals found for {ticker}")
+            logger.warning(
+                "[get_company_fundamentals] No fundamentals found for ticker=%s; returning error",
+                ticker,
+            )
             return {"error": f"No fundamentals found for {ticker}"}
 
         result = {
@@ -114,9 +117,15 @@ async def get_company_fundamentals(ticker: str) -> dict:
             "disclaimer": "Data from public filings, for reference only",
         }
         
-        logger.info(f"[get_company_fundamentals] Successfully fetched {ticker} fundamentals: PE={result['valuation']['pe_ratio']}, ROE={result['profitability']['roe']}")
+        logger.info(
+            "[get_company_fundamentals] Successfully fetched %s: PE=%s, ROE=%s; returning result (keys=%s)",
+            ticker,
+            result["valuation"]["pe_ratio"],
+            result["profitability"]["roe"],
+            list(result.keys()),
+        )
         return result
-        
+
     except Exception as e:
         logger.error(f"[get_company_fundamentals] Failed to fetch fundamentals for {ticker}: {e}", exc_info=True)
         return {"error": f"Failed to fetch fundamentals: {str(e)}"}
@@ -290,7 +299,10 @@ async def get_earnings_history(
     When state has analysis_start/analysis_end, only returns earnings if the latest report is within one quarter of the analysis window; otherwise returns no_earnings_in_range.
     Suitable for earnings analysis, trend evaluation, YoY/QoQ comparisons, and frontend charts.
     """
-    logger.info(f"[get_earnings_history] Starting to fetch earnings history for {ticker}")
+    logger.info(
+        "[get_earnings_history] Starting for ticker=%s, analysis_start=%s, analysis_end=%s",
+        ticker, analysis_start, analysis_end,
+    )
 
     try:
         tk = yf.Ticker(ticker)
@@ -376,7 +388,10 @@ async def get_earnings_history(
                 result["earnings_dates"].append(entry)
 
         if not result["quarterly"] and not result["annual"] and not result["earnings_surprise"]:
-            logger.warning(f"[get_earnings_history] No earnings data found for {ticker}")
+            logger.warning(
+                "[get_earnings_history] No earnings data for ticker=%s; returning error",
+                ticker,
+            )
             return {"error": f"No earnings data found for {ticker}"}
 
         if analysis_start and analysis_end:
@@ -386,7 +401,8 @@ async def get_earnings_history(
                 gap_days = (start_d - latest).days
                 if gap_days > MAX_EARNINGS_QUARTER_DAYS:
                     logger.info(
-                        f"[get_earnings_history] Latest earnings {latest.date()} is {gap_days} days before analysis start {analysis_start}; beyond one quarter, returning no_earnings_in_range"
+                        "[get_earnings_history] Latest earnings %s is %s days before analysis_start=%s; returning no_earnings_in_range",
+                        latest.date(), gap_days, analysis_start,
                     )
                     return {
                         "ticker": ticker,
@@ -405,13 +421,16 @@ async def get_earnings_history(
                     }
             _filter_earnings_by_window(result, analysis_start, analysis_end)
 
+        n_q, n_a, n_s = len(result["quarterly"]), len(result["annual"]), len(result["earnings_surprise"])
         logger.info(
-            f"[get_earnings_history] Successfully fetched {ticker} earnings: "
-            f"{len(result['quarterly'])} quarters, {len(result['annual'])} years, "
-            f"{len(result['earnings_surprise'])} eps surprises"
+            "[get_earnings_history] Returning result for %s: quarterly=%s, annual=%s, eps_surprise=%s",
+            ticker, n_q, n_a, n_s,
         )
         return result
 
     except Exception as e:
-        logger.error(f"[get_earnings_history] Failed to fetch earnings for {ticker}: {e}", exc_info=True)
+        logger.error(
+            "[get_earnings_history] Failed for ticker=%s: %s", ticker, e,
+            exc_info=True,
+        )
         return {"error": f"Failed to fetch earnings: {str(e)}"}

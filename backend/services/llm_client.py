@@ -25,6 +25,7 @@ class LLMClient:
             model=model,
             base_url="https://openrouter.ai/api/v1",
             api_key=settings.OPENROUTER_API_KEY,
+            temperature=0.1,
             streaming=True,
             default_headers={
                 "HTTP-Referer": settings.APP_URL,
@@ -43,6 +44,7 @@ class LLMClient:
             model=model or MODEL_ROUTING["router"],
             messages=messages,
             stream=stream,
+            temperature=0.1,
         )
 
 

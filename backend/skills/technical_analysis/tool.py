@@ -55,6 +55,10 @@ async def calculate_technical_indicators(
     Time range from state analysis_start/analysis_end.
     """
     if not analysis_start or not analysis_end:
+        logger.warning(
+            "[calculate_technical_indicators] Missing state: analysis_start=%s, analysis_end=%s; returning error",
+            analysis_start, analysis_end,
+        )
         return {"error": "analysis_start and analysis_end are required in state"}
     try:
         import pandas_ta as ta
@@ -70,6 +74,10 @@ async def calculate_technical_indicators(
         )
 
         if hist.empty:
+            logger.warning(
+                "[calculate_technical_indicators] No historical data for ticker=%s, start=%s, end=%s; returning error",
+                ticker, analysis_start, analysis_end,
+            )
             return {"error": f"No historical data found for {ticker}"}
 
         data_points = len(hist)
@@ -220,7 +228,7 @@ async def calculate_technical_indicators(
         else:
             overall_signal = "neutral"
 
-        return {
+        out = {
             "ticker": ticker,
             "time_range": time_range,
             "interval": interval,
@@ -263,7 +271,12 @@ async def calculate_technical_indicators(
             "data_source": "market_data_service",
             "disclaimer": "Technical indicators are for reference only and do not constitute investment advice.",
         }
-    
+        logger.info(
+            "[calculate_technical_indicators] Returning result for %s: data_points=%s, overall_signal=%s, signals_count=%s",
+            ticker, data_points, overall_signal, len(signals),
+        )
+        return out
+
     except Exception as e:
         logger.error(f"Failed to calculate technical indicators for {ticker}: {e}")
         return {"error": f"Failed to calculate technical indicators: {str(e)}"}

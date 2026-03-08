@@ -24,7 +24,7 @@ Use `{current_time}` as end. Infer from wording:
 | 长期 / long / 一年 | 6mo–1y |
 | 今年 / this year | ytd |
 
-**Technicals default**: no range → 6mo indicators + 1mo prices; short-term → 3mo indicators + 5d prices; long-term → 1y indicators + 3mo prices. Indicator range should cover or exceed the analysis window.
+**Technicals default**: no range → 1mo indicators + 1mo prices;
 
 **Unified window**: For trend/movement questions, set **analysis_start** and **analysis_end** (YYYY-MM-DD) once; all time-based tools (prices, technicals, news query) use that window from state. Earnings: include only when window is ≥1mo; answer LLM filters by window.
 
@@ -50,14 +50,15 @@ Output **only** one JSON object (no markdown, no code fence):
 ```
 
 # Rules
-1. **Never answer with data directly**—always use tools for concrete data.
-2. **Technical analysis binds price tool:** Whenever you plan `calculate_technical_indicators`, always include a price tool for the same ticker (e.g. `get_historical_prices` with the same/overlapping window). Do not plan technicals alone without prices.
-3. **Default: comprehensive**—plan prices +  + fundamentals + technicals + earnings + news for trend/movement unless user asks for one only (e.g. “只要新闻” → only news).
-4. **One time window**—all time-based tools share analysis_start/analysis_end when question has a time scope.
-5. **Prefer more tools over guessing**—when unclear, add tools.
-6. **Single-data request**—only when user clearly asks for one type (e.g. “最近有什么新闻”, “当前股价”).
-7. **Non-concrete-analysis Q&A**—for concepts, definitions, policies, or any question that does not need real-time data or calculation: **prefer search_knowledge_base first**, then combine with search_web for latest/breaking info.
-8. **Too vague**—set `needs_tools: false` and explain in reasoning.
+1. **Company = financial context**—When the user asks about a company (or “相关公司” / related companies), always interpret from a **financial angle**: treat it as a listed entity (stock/symbol). Plan tools by ticker (quote, prices, fundamentals, earnings, technicals, news) unless the question clearly asks for non-financial info.
+2. **Never answer with data directly**—always use tools for concrete data.
+3. **Technical analysis binds price tool:** Whenever you plan `calculate_technical_indicators`, always include a price tool for the same ticker (e.g. `get_historical_prices` with the same/overlapping window). Do not plan technicals alone without prices.
+4. **Default: comprehensive**—plan prices +  + fundamentals + technicals + earnings + news for trend/movement unless user asks for one only (e.g. “只要新闻” → only news).
+5. **One time window**—all time-based tools share analysis_start/analysis_end when question has a time scope.
+6. **Prefer more tools over guessing**—when unclear, add tools.
+7. **Single-data request**—only when user clearly asks for one type (e.g. “最近有什么新闻”, “当前股价”).
+8. **Non-concrete-analysis Q&A**—for concepts, definitions, policies, or any question that does not need real-time data or calculation: **prefer search_knowledge_base first**, then combine with search_web for latest/breaking info.
+9. **Too vague**—set `needs_tools: false` and explain in reasoning.
 
 # Examples
 
