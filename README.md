@@ -239,6 +239,68 @@ sequenceDiagram
 - **State 注入**：使用 LangGraph 的 `InjectedState` 在工具间共享分析时间窗口
 - **上下文保持**：对话历史通过消息列表传递，支持多轮追问
 
+## Agent State 设计
+
+LangGraph 通过 State 在整个 Agent 流程中传递数据，以下是系统定义的 `AgentState` 字段说明：
+
+### 基础字段（继承自 MessagesState）
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `messages` | `list[BaseMessage]` | 对话历史消息列表，包含用户问题和 Agent 回复 |
+
+### 核心字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `remaining_steps` | `int` | 剩余迭代步数，防止无限循环，默认 25 |
+| `ticker` | `Optional[str]` | 股票代码，如 TSLA、BABA，从问题中提取 |
+| `query_type` | `Optional[str]` | 查询类型：market/technical/fundamentals/rag/news/earnings，用于前端展示 |
+| `response_language` | `Optional[str]` | 响应语言：zh/en/ja/ko，由 Coordinator 推断 |
+| `analysis_start` | `Optional[str]` | 分析起始日期 (YYYY-MM-DD)，由 Coordinator 统一推断 |
+| `analysis_end` | `Optional[str]` | 分析结束日期 (YYYY-MM-DD)，默认当前日期 |
+
+### Coordinator 相关字段
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `needs_tools` | `bool` | 是否需要调用工具，由 Coordinator 判断 |
+| `tool_plan` | `list[dict]` | 工具调用计划，JSON 格式的工具列表 |
+| `coordination_reasoning` | `str` | Coordinator 的推理过程，供前端显示思考过程 |
+| `coordinator_raw_output` | `str` | Coordinator 原始输出（JSON） |
+| `coordinator_markdown` | `str` | Coordinator 输出的 Markdown 格式，用于流式输出 |
+| `executed_tools` | `list[str]` | 已执行工具名称列表，用于去重和日志 |
+| `validation_failed` | `bool` | Coordinator 输出验证是否失败 |
+| `tool_remind_count` | `int` | 工具调用提醒次数，用于调试 |
+
+### 缓存与性能
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `cache_hits` | `int` | 缓存命中次数，用于监控缓存效果 |
+
+### 状态流转
+
+```
+用户问题 → Coordinator 规划 → 填充 tool_plan/analysis_start/analysis_end 
+         → ToolNode 执行工具 → 更新 executed_tools 
+         → LLM 生成回答 → 更新 messages
+```
+
+### 工具间状态共享
+
+通过 `@tool` 装饰器的 `InjectedState` 参数，工具可以读取和写入 State：
+
+```python
+async def get_historical_prices(
+    ticker: str,
+    analysis_start: Annotated[Optional[str], InjectedState("analysis_start")] = None,
+    analysis_end: Annotated[Optional[str], InjectedState("analysis_end")] = None,
+) -> dict:
+    # 读取时间窗口
+    ...
+```
+
 ## 数据来源
 
 ### 实时行情数据
