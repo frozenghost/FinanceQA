@@ -303,25 +303,66 @@ export function useSSEChat(
                         mergedType = "hybrid";
                       }
 
-                      // Only update steps if payload has them, preserve existing steps
-                      const mergedSteps = payload.steps !== undefined 
-                        ? payload.steps 
+                      const mergedSteps = payload.steps !== undefined
+                        ? payload.steps
                         : prevMeta.steps;
+
+                      // Preserve chart/data fields if payload does not include them (e.g. final event only has steps)
+                      const mergedMetadata = {
+                        ...prevMeta,
+                        ...payload,
+                        ...(mergedType ? { type: mergedType } : {}),
+                        steps: mergedSteps,
+                      } as MessageMetadata;
+                      if (mergedMetadata.ohlcv === undefined && prevMeta.ohlcv != null) mergedMetadata.ohlcv = prevMeta.ohlcv;
+                      if (mergedMetadata.indicators === undefined && prevMeta.indicators != null) mergedMetadata.indicators = prevMeta.indicators;
+                      if (mergedMetadata.chart_series === undefined && prevMeta.chart_series != null) mergedMetadata.chart_series = prevMeta.chart_series;
 
                       finalAssistantMsg = {
                         ...m,
-                        metadata: {
-                          ...prevMeta,
-                          ...payload,
-                          ...(mergedType ? { type: mergedType } : {}),
-                          steps: mergedSteps,
-                        } as MessageMetadata,
+                        metadata: mergedMetadata,
                       };
                       return finalAssistantMsg;
                     }
                     return m;
                   })
                 );
+              } else if (data.type === "done") {
+                // When streaming is complete, check if current message needs chart data from history
+                setMessages((prev) => {
+                  const hasChartData = (msg: Message) => 
+                    msg.metadata?.ohlcv?.length || 
+                    msg.metadata?.indicators ||
+                    msg.metadata?.chart_series;
+
+                  const currentMsg = prev.find(m => m.id === assistantId);
+                  if (currentMsg && !hasChartData(currentMsg)) {
+                    // Find chart data from previous assistant messages in this conversation
+                    for (let i = prev.length - 2; i >= 0; i--) {
+                      const prevMsg = prev[i];
+                      if (prevMsg.role === "assistant" && hasChartData(prevMsg)) {
+                        const mergedType: MessageMetadata["type"] = currentMsg.metadata?.type ?? prevMsg.metadata?.type ?? "hybrid";
+                        const enrichedMsg: Message = {
+                          ...currentMsg,
+                          metadata: {
+                            ...currentMsg.metadata,
+                            ...prevMsg.metadata,
+                            ohlcv: currentMsg.metadata?.ohlcv ?? prevMsg.metadata?.ohlcv,
+                            indicators: currentMsg.metadata?.indicators ?? prevMsg.metadata?.indicators,
+                            chart_series: currentMsg.metadata?.chart_series ?? prevMsg.metadata?.chart_series,
+                            ticker: currentMsg.metadata?.ticker ?? prevMsg.metadata?.ticker,
+                            current: currentMsg.metadata?.current ?? prevMsg.metadata?.current,
+                            change_pct: currentMsg.metadata?.change_pct ?? prevMsg.metadata?.change_pct,
+                            trend: currentMsg.metadata?.trend ?? prevMsg.metadata?.trend,
+                            type: mergedType,
+                          },
+                        };
+                        return prev.map(m => m.id === assistantId ? enrichedMsg : m);
+                      }
+                    }
+                  }
+                  return prev;
+                });
               } else if (data.type === "error") {
                 setMessages((prev) =>
                   prev.map((m) => {

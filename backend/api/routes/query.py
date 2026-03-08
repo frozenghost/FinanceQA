@@ -139,24 +139,33 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
                     output = event["data"].get("output", "")
                     logger.info(f"[query] Tool end: {tool_name}, output type: {type(output).__name__}")
 
-                    # Try to parse structured output
+                    # Parse tool output: can be raw dict, ToolMessage (or serialized dict with "content"), or str
                     metadata_payload = None
                     try:
-                        # Extract content from ToolMessage object
-                        raw_content = ""
-                        if hasattr(output, "content"):
-                            raw_content = output.content
-                        elif isinstance(output, str):
-                            raw_content = output
-                        
-                        # Parse the content as JSON
                         parsed = None
-                        if raw_content:
-                            try:
-                                parsed = json_repair.loads(raw_content)
-                                logger.info(f"[query] Parsed output for {tool_name}, keys: {list(parsed.keys()) if isinstance(parsed, dict) else 'not dict'}")
-                            except Exception as e:
-                                logger.warning(f"[query] Failed to parse {tool_name} output: {e}")
+                        if isinstance(output, dict):
+                            if "ohlcv" in output or "indicators" in output or "chart_series" in output:
+                                parsed = output
+                            elif "content" in output and output.get("content"):
+                                try:
+                                    parsed = json_repair.loads(output["content"])
+                                except Exception as e:
+                                    logger.warning(f"[query] Failed to parse {tool_name} output content: {e}")
+                            else:
+                                parsed = output
+                        else:
+                            raw_content = ""
+                            if hasattr(output, "content"):
+                                raw_content = output.content or ""
+                            elif isinstance(output, str):
+                                raw_content = output
+                            if raw_content:
+                                try:
+                                    parsed = json_repair.loads(raw_content)
+                                except Exception as e:
+                                    logger.warning(f"[query] Failed to parse {tool_name} output: {e}")
+                        if isinstance(parsed, dict):
+                            logger.info(f"[query] Parsed output for {tool_name}, keys: {list(parsed.keys())}")
 
                         # Detect market data with OHLCV for chart rendering
                         if isinstance(parsed, dict):
@@ -175,13 +184,20 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
                                         "Volume": item.get("volume"),
                                     })
                                 
+                                period_pct = parsed.get("period_return_pct")
+                                if period_pct is None and parsed.get("change_percent") is not None:
+                                    period_pct = parsed.get("change_percent")
+                                change_pct = parsed.get("change_pct") or parsed.get("change_percent") or period_pct
+                                trend = parsed.get("trend")
+                                if trend is None and change_pct is not None:
+                                    trend = "up" if float(change_pct) > 0 else "down" if float(change_pct) < 0 else "flat"
                                 metadata_payload = {
                                     "type": "market",
                                     "ticker": parsed.get("ticker"),
                                     "ohlcv": formatted_ohlcv,
-                                    "current": parsed.get("current"),
-                                    "change_pct": parsed.get("change_pct"),
-                                    "trend": parsed.get("trend"),
+                                    "current": parsed.get("current") or parsed.get("current_price") or parsed.get("period_close"),
+                                    "change_pct": change_pct,
+                                    "trend": trend,
                                 }
                             elif "indicators" in parsed:
                                 logger.info(f"[query] Found indicators in {tool_name} output")
