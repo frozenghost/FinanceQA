@@ -37,26 +37,42 @@ async def feedback(req: FeedbackRequest) -> dict:
     return {"status": "success"}
 
 
+def _history_to_messages(history: Optional[list[dict]], new_message: str) -> list:
+    """Build message list from client history and new user message (fallback when no checkpoint)."""
+    messages = []
+    if history:
+        for msg in history[-10:]:
+            if msg.get("role") == "user":
+                messages.append(HumanMessage(content=msg["content"]))
+            elif msg.get("role") == "assistant":
+                messages.append(AIMessage(content=msg["content"]))
+    messages.append(HumanMessage(content=new_message))
+    return messages
+
+
 @router.post("/api/query")
 async def query_agent(req: QueryRequest) -> StreamingResponse:
     """Stream agent response via SSE (Server-Sent Events)."""
 
     async def event_stream():
         agent = get_agent()
-
-        messages = []
-        if req.history:
-            for msg in req.history[-10:]:
-                if msg.get("role") == "user":
-                    messages.append(HumanMessage(content=msg["content"]))
-                elif msg.get("role") == "assistant":
-                    messages.append(AIMessage(content=msg["content"]))
-
-        messages.append(HumanMessage(content=req.message))
-
         thread_id = req.thread_id or str(uuid.uuid4())
         run_id = str(uuid.uuid4())
         config = {"configurable": {"thread_id": thread_id, "run_id": run_id}}
+
+        messages = []
+        if req.thread_id:
+            try:
+                state = await agent.aget_state(config)
+                if state.values.get("messages"):
+                    messages = [HumanMessage(content=req.message)]
+                else:
+                    messages = _history_to_messages(req.history, req.message)
+            except Exception as e:
+                logger.warning(f"[query] Checkpoint load failed for thread_id={req.thread_id}, using history: {e}")
+                messages = _history_to_messages(req.history, req.message)
+        else:
+            messages = _history_to_messages(req.history, req.message)
 
         try:
             tool_calls_info = []

@@ -160,13 +160,9 @@ export function useSSEChat(
         }
       }
 
-      const historyPayload = messages.slice(-10).map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-      const body: { message: string; history: Array<{ role: string; content: string }>; thread_id?: string } = {
+      const body: { message: string; history?: Array<{ role: string; content: string }>; thread_id?: string } = {
         message: input,
-        history: historyPayload,
+        history: convId ? [] : messages.slice(-10).map((m) => ({ role: m.role, content: m.content })),
       };
       if (convId) {
         body.thread_id = convId;

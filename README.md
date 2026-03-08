@@ -115,7 +115,7 @@ flowchart TB
         Redis[(Redis<br>缓存)]
         Chroma[(Chroma<br>向量数据库)]
         Yahoo[yfinance<br>行情数据]
-        Tavily[Tavily API<br>搜索/新闻]
+        Serp/Tavily[Serp/Tavily API<br>搜索/新闻]
     end
 
     UI -->|"POST /api/query (SSE)"| API
@@ -126,7 +126,7 @@ flowchart TB
     Svc --> Redis
     Skills --> Chroma
     Skills --> Yahoo
-    Skills --> Tavily
+    Skills --> Serp/Tavily
     Svc --> Chroma
 ```
 
@@ -180,9 +180,9 @@ sequenceDiagram
 | 类别 | 技术选型 | 说明 |
 |------|----------|------|
 | **框架** | React + Vite | 现代前端构建工具 |
-| **路由** | TanStack Router | 类型安全的客户端路由 |
+| **路由** | TanStack Router + Bun | 类型安全的客户端路由，开发足够快，成熟团队推荐Next.js |
 | **HTTP** | 原生 Fetch + SSE | Server-Sent Events 流式响应 |
-| **图表** | D3.js | K 线图和指标可视化 |
+| **图表** | rechart | K 线图和指标可视化 |
 
 ### 架构设计原则
 
