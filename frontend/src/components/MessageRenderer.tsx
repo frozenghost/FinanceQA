@@ -72,6 +72,12 @@ export function MessageRenderer({ message, isThinking }: Props) {
             : "w-full bg-slate-900/80 text-slate-50 border-slate-700/80 rounded-tl-sm"
         )}
       >
+        {/* Model reasoning (extended thinking from o1, DeepSeek R1, etc.) */}
+        {!isUser && message.metadata?.modelThinking && (
+          <div className="mb-3">
+            <ModelThinkingFold content={message.metadata.modelThinking} />
+          </div>
+        )}
         {/* Coordinator thinking (above answer, expanded by default) */}
         {!isUser && message.metadata?.coordinator && (
           <div className="mb-3">
@@ -507,6 +513,39 @@ function StepsFold({ steps }: { steps: MessageMetadata["steps"] }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModelThinkingFold({ content }: { content: string }) {
+  const [open, setOpen] = useState(false);
+  if (!content?.trim()) return null;
+  return (
+    <div className="border border-amber-500/30 rounded-xl overflow-hidden shadow-[0_18px_45px_rgba(245,158,11,0.12)] bg-gradient-to-br from-amber-950/30 to-slate-950/40 backdrop-blur-2xl">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-amber-900/20 hover:bg-amber-800/30 text-xs text-amber-100 font-medium transition-colors border-b border-transparent data-[state=open]:border-amber-500/30"
+        data-state={open ? "open" : "closed"}
+      >
+        <span className="flex items-center gap-2">
+          <span className="text-amber-300">💭</span>
+          <span>Model reasoning</span>
+        </span>
+        {open ? (
+          <ChevronDown className="w-4 h-4 text-amber-300" />
+        ) : (
+          <ChevronRight className="w-4 h-4 text-amber-300" />
+        )}
+      </button>
+      {open && (
+        <div className="px-4 py-3 bg-slate-950/50">
+          <div className="prose prose-invert prose-sm max-w-none prose-p:text-slate-200 prose-p:text-xs prose-p:leading-relaxed prose-pre:text-xs prose-pre:bg-slate-900/80 prose-pre:border prose-pre:border-slate-700/80">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {content}
+            </ReactMarkdown>
+          </div>
         </div>
       )}
     </div>

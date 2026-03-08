@@ -78,6 +78,7 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
             tool_calls_info = []
             coordinator_data_sent = False
             current_node = None
+            agent_chunk_logged = [False]
 
             async for event in agent.astream_events(
                 {"messages": messages},
@@ -110,13 +111,17 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
                 if kind == "on_chat_model_stream":
                     node = metadata.get("langgraph_node") or current_node
                     chunk = event["data"]["chunk"]
-                    if isinstance(chunk, AIMessageChunk) and chunk.content:
-                        token = chunk.content
-                        # if node == "coordinator":
-                        #     # Stream coordinator tokens for live display
-                        #     yield f"data: {json.dumps({'type': 'thinking', 'token': token}, default=str)}\n\n"
-                        if node != "coordinator":
-                            yield f"data: {json.dumps({'type': 'answer', 'token': token}, default=str)}\n\n"
+                    if not isinstance(chunk, AIMessageChunk):
+                        continue
+                    kwargs = getattr(chunk, "additional_kwargs", {}) or {}
+                    if node != "coordinator" and not agent_chunk_logged[0]:
+                        logger.info("[query] agent chunk additional_kwargs keys: %s", list(kwargs.keys()))
+                        agent_chunk_logged[0] = True
+                    reasoning = kwargs.get("reasoning_content") or kwargs.get("reasoning") or ""
+                    if reasoning:
+                        yield f"data: {json.dumps({'type': 'model_thinking', 'token': reasoning}, default=str)}\n\n"
+                    if chunk.content and node != "coordinator":
+                        yield f"data: {json.dumps({'type': 'answer', 'token': chunk.content}, default=str)}\n\n"
 
                 elif kind == "on_tool_start":
                     # Tool invocation started

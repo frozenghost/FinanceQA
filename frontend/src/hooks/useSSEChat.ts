@@ -52,6 +52,8 @@ export interface MessageMetadata {
   signals?: string[];
   steps?: AgentStep[];
   coordinator?: CoordinatorData;
+  /** Reasoning/thinking from models that support extended thinking (e.g. o1, DeepSeek R1) */
+  modelThinking?: string;
   quarterly?: unknown[];
   annual?: unknown[];
   earnings_surprise?: unknown[];
@@ -210,6 +212,21 @@ export function useSSEChat(
                       return finalAssistantMsg;
                     }
                     return m;
+                  })
+                );
+              } else if (data.type === "model_thinking") {
+                setMessages((prev) =>
+                  prev.map((m) => {
+                    if (m.id !== assistantId) return m;
+                    const token = (data.token as string) ?? "";
+                    finalAssistantMsg = {
+                      ...m,
+                      metadata: {
+                        ...m.metadata,
+                        modelThinking: (m.metadata?.modelThinking ?? "") + token,
+                      } as MessageMetadata,
+                    };
+                    return finalAssistantMsg;
                   })
                 );
               } else if (data.type === "thinking") {
