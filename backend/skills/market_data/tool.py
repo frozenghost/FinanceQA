@@ -9,13 +9,7 @@ from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.cache_service import cached
-from skills.common import (
-    DATE_PATTERN,
-    VALID_INTERVALS,
-    VALID_PERIODS,
-    run_sync,
-    validate_non_empty,
-)
+from skills.common import VALID_INTERVALS, VALID_PERIODS, run_sync, validate_non_empty
 
 logger = logging.getLogger(__name__)
 
@@ -37,15 +31,7 @@ class GetHistoricalPricesInput(BaseModel):
     ticker: str = Field(description="Stock symbol")
     period: Optional[str] = Field(
         default=None,
-        description="Time range: 1d/5d/1mo/3mo/6mo/1y/2y/5y/max (mutually exclusive with start/end)",
-    )
-    start: Optional[str] = Field(
-        default=None,
-        description="Start date YYYY-MM-DD (use with end, mutually exclusive with period)",
-    )
-    end: Optional[str] = Field(
-        default=None,
-        description="End date YYYY-MM-DD (use with start, mutually exclusive with period)",
+        description="Time range: 1d/5d/1mo/3mo/6mo/1y/2y/5y/max (when state has no analysis_start/analysis_end)",
     )
     interval: str = Field(default="1d", description="Granularity: 1d / 1wk / 1mo")
 
@@ -56,18 +42,10 @@ class GetHistoricalPricesInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_time_range(self):
-        if self.period and (self.start or self.end):
-            raise ValueError("Parameters 'period' and 'start/end' cannot be used together")
-        if (self.start and not self.end) or (self.end and not self.start):
-            raise ValueError("Both 'start' and 'end' must be provided together")
         if self.period and self.period not in VALID_PERIODS:
             raise ValueError(f"period must be one of {VALID_PERIODS}")
         if self.interval not in VALID_INTERVALS:
             raise ValueError(f"interval must be one of {VALID_INTERVALS}")
-        if self.start and not DATE_PATTERN.match(self.start):
-            raise ValueError("start must be YYYY-MM-DD")
-        if self.end and not DATE_PATTERN.match(self.end):
-            raise ValueError("end must be YYYY-MM-DD")
         return self
 
 
@@ -130,8 +108,8 @@ async def get_real_time_quote(ticker: str) -> dict:
 def _cache_key_ohlcv(*args, **kwargs) -> str:
     ticker = kwargs.get("ticker") or (args[0] if args else "") or ""
     period = kwargs.get("period") or ""
-    start = kwargs.get("analysis_start") or kwargs.get("start") or ""
-    end = kwargs.get("analysis_end") or kwargs.get("end") or ""
+    start = kwargs.get("analysis_start") or ""
+    end = kwargs.get("analysis_end") or ""
     interval = kwargs.get("interval", "1d")
     if start and end:
         return f"{ticker}_{start}_{end}_{interval}"
@@ -143,30 +121,16 @@ def _cache_key_ohlcv(*args, **kwargs) -> str:
 async def get_historical_prices(
     ticker: str,
     period: Optional[str] = None,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
     interval: str = "1d",
     analysis_start: Annotated[Optional[str], InjectedState("analysis_start")] = None,
     analysis_end: Annotated[Optional[str], InjectedState("analysis_end")] = None,
 ) -> dict:
     """
-    Fetch historical OHLCV price data.
-    - ticker: Stock symbol
-    - period: Time range, supports 1d/5d/1mo/3mo/6mo/1y/2y/5y/max (mutually exclusive with start/end)
-    - start: Start date, format YYYY-MM-DD (mutually exclusive with period, must be used with end)
-    - end: End date, format YYYY-MM-DD (mutually exclusive with period, must be used with start)
-    - interval: Data granularity, supports 1d (daily) / 1wk (weekly) / 1mo (monthly)
-    Returns a full OHLCV list with open, high, low, close, volume.
-    period_return_pct is (last close - first open) / first open, matching K-line 涨跌幅 in brokerage apps.
-    Suitable for candlestick charts, technical indicators, and historical analysis.
-    
-    Examples:
-    - get_historical_prices("AAPL", period="1mo")  # last 1 month
-    - get_historical_prices("AAPL", start="2024-03-15", end="2024-03-21")  # explicit date range
+    Fetch historical OHLCV price data. Time range from state analysis_start/analysis_end, or period when not set.
     """
-    use_start = analysis_start or start
-    use_end = analysis_end or end
-    if not period and not use_start:
+    use_start = analysis_start
+    use_end = analysis_end
+    if not period and not (use_start and use_end):
         period = "1mo"
 
     if period and not (use_start and use_end):

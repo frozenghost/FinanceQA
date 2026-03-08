@@ -16,7 +16,7 @@ You have access to:
 
 **When to call tools:**
 - Stock/company mentioned → call market data or knowledge base
-- Technical indicators → call technical analysis
+- Technical indicators → call technical analysis **and** always call a price tool (historical prices) for the same ticker
 - News → call news tool
 - Financial concepts → call knowledge base
 - Recent/breaking info → call web search

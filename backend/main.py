@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage APScheduler lifecycle."""
+    """Manage APScheduler and optional Redis checkpointer."""
     scheduler = None
 
     if settings.KB_REFRESH_ENABLED:
@@ -33,7 +33,23 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"APScheduler failed to start (main service unaffected): {e}")
 
-    yield
+    if settings.USE_REDIS_CHECKPOINTER:
+        try:
+            from langgraph.checkpoint.redis.aio import AsyncRedisSaver
+
+            from checkpoint import set_checkpointer
+
+            redis_url = f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}"
+            async with AsyncRedisSaver.from_conn_string(redis_url) as saver:
+                await saver.asetup()
+                set_checkpointer(saver)
+                logger.info("Redis checkpointer enabled")
+                yield
+        except Exception as e:
+            logger.warning(f"Redis checkpointer failed (using in-memory): {e}")
+            yield
+    else:
+        yield
 
     if scheduler is not None:
         scheduler.shutdown(wait=False)

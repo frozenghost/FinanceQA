@@ -8,13 +8,17 @@ from prompts.loader import load_system_prompt
 from services.llm_client import LLMClient
 from skills import ALL_TOOLS
 from config.settings import settings
+from checkpoint import get_checkpointer
 
-checkpointer = InMemorySaver()
+
+def _get_checkpointer():
+    return get_checkpointer() or InMemorySaver()
 
 
 def build_agent():
     """Build and return a LangGraph ReAct agent."""
     llm = LLMClient().get_langchain_model(role="market_analyst")
+    checkpointer = _get_checkpointer()
 
     agent = create_react_agent(
         model=llm,

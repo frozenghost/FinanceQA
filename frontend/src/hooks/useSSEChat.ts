@@ -152,7 +152,6 @@ export function useSSEChat(
 
       setMessages((prev) => [...prev, userMsg, assistantMsg]);
 
-      // Persist user message
       if (convId && dbInitialized.current) {
         try {
           await chatStorage.saveMessage(convId, userMsg);
@@ -161,17 +160,23 @@ export function useSSEChat(
         }
       }
 
+      const historyPayload = messages.slice(-10).map((m) => ({
+        role: m.role,
+        content: m.content,
+      }));
+      const body: { message: string; history: Array<{ role: string; content: string }>; thread_id?: string } = {
+        message: input,
+        history: historyPayload,
+      };
+      if (convId) {
+        body.thread_id = convId;
+      }
+
       try {
         const res = await fetch("/api/query", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: input,
-            history: messages.slice(-10).map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-          }),
+          body: JSON.stringify(body),
           signal: abortRef.current.signal,
         });
 
@@ -341,16 +346,17 @@ export function useSSEChat(
           }
         }
 
-        // Persist full assistant message - get latest from messages state
-        setMessages((prev) => {
-          const assistantMsg = prev.find((m) => m.id === assistantId);
-          if (convId && dbInitialized.current && assistantMsg?.content) {
-            chatStorage.saveMessage(convId, assistantMsg).catch((error) => {
-              console.error("Failed to save assistant message:", error);
-            });
-          }
-          return prev;
-        });
+        if (convId && dbInitialized.current) {
+          setMessages((prev) => {
+            const assistantMsg = prev.find((m) => m.id === assistantId);
+            if (assistantMsg?.content) {
+              chatStorage.saveMessage(convId, assistantMsg).catch((error) => {
+                console.error("Failed to save assistant message:", error);
+              });
+            }
+            return prev;
+          });
+        }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
           setMessages((prev) =>

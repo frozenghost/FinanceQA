@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # ── Infrastructure ──────────────────────────────────────────────
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+    USE_REDIS_CHECKPOINTER: bool = False
+    CHECKPOINT_REDIS_PREFIX: str = ""
     CHROMA_DIR: str = "./chroma_db"
     SQLITE_PATH: str = "./logs.db"
 

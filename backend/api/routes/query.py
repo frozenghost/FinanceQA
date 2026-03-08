@@ -23,6 +23,20 @@ class QueryRequest(BaseModel):
     thread_id: Optional[str] = None
 
 
+class FeedbackRequest(BaseModel):
+    run_id: str
+    key: str = "human-feedback-stars"
+    score: float
+    comment: Optional[str] = None
+
+
+@router.post("/api/feedback")
+async def feedback(req: FeedbackRequest) -> dict:
+    """Record feedback for a run (e.g. for future LangSmith integration)."""
+    logger.info(f"Feedback: run_id={req.run_id} key={req.key} score={req.score}")
+    return {"status": "success"}
+
+
 @router.post("/api/query")
 async def query_agent(req: QueryRequest) -> StreamingResponse:
     """Stream agent response via SSE (Server-Sent Events)."""
@@ -41,7 +55,8 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
         messages.append(HumanMessage(content=req.message))
 
         thread_id = req.thread_id or str(uuid.uuid4())
-        config = {"configurable": {"thread_id": thread_id}}
+        run_id = str(uuid.uuid4())
+        config = {"configurable": {"thread_id": thread_id, "run_id": run_id}}
 
         try:
             tool_calls_info = []
@@ -208,7 +223,7 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
             else:
                 logger.warning("[query] No tool calls recorded, steps will not be sent")
 
-            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'run_id': run_id})}\n\n"
 
         except Exception as e:
             logger.error(f"Agent execution error: {e}", exc_info=True)

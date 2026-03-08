@@ -6,16 +6,14 @@ import { useSSEChat } from "../hooks/useSSEChat";
 import { MessageRenderer } from "../components/MessageRenderer";
 import { chatStorage } from "../services/chatStorage";
 
-const CHAT_OPTIONS_SKIP = { skipInitialLoad: true } as const;
-const CHAT_OPTIONS_LOAD = { skipInitialLoad: false } as const;
-
 function ConversationPage() {
   const { conversationId } = conversationRoute.useParams();
   const navigate = useNavigate();
   const locationState = useRouterState({ select: (s) => s.location.state });
   const hasInitialMessage = !!locationState?.initialMessage;
-  const chatOptions = hasInitialMessage ? CHAT_OPTIONS_SKIP : CHAT_OPTIONS_LOAD;
-  const { messages, isLoading, send, stop } = useSSEChat(conversationId, chatOptions);
+  const { messages, isLoading, send, stop } = useSSEChat(conversationId, {
+    skipInitialLoad: hasInitialMessage,
+  });
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const initialMessageSent = useRef(false);

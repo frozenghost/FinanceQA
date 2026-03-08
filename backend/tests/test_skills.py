@@ -74,8 +74,8 @@ class TestTechnicalAnalysisSkill:
 
         result = calculate_technical_indicators.invoke({
             "ticker": "AAPL",
-            "start": "2024-01-01",
-            "end": "2024-06-30",
+            "analysis_start": "2024-01-01",
+            "analysis_end": "2024-06-30",
             "interval": "1d",
         })
 

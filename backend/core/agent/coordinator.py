@@ -140,6 +140,14 @@ def _parse_coordinator_output(aimessage: AIMessage) -> dict:
         if analysis_start or analysis_end:
             logger.info("Coordinator analysis window: start=%s, end=%s", analysis_start, analysis_end)
 
+        if analysis_start and analysis_end:
+            for t in tool_plan:
+                if t.get("tool") in ("get_historical_prices", "calculate_technical_indicators"):
+                    params = t.get("params") or {}
+                    if "start" in params or "end" in params:
+                        params = {k: v for k, v in params.items() if k not in ("start", "end")}
+                        t["params"] = params
+
         return {
             "tool_plan": tool_plan,
             "needs_tools": plan.get("needs_tools", True),

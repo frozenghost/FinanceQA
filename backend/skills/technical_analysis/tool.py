@@ -19,23 +19,12 @@ class CalculateTechnicalIndicatorsInput(BaseModel):
     """Schema for calculate_technical_indicators."""
 
     ticker: str = Field(description="Stock symbol")
-    start: Optional[str] = Field(default=None, description="Start date YYYY-MM-DD (optional if state has analysis_start)")
-    end: Optional[str] = Field(default=None, description="End date YYYY-MM-DD (optional if state has analysis_end)")
     interval: str = Field(default="1d", description="Granularity: 1d / 1wk / 1mo")
 
     @field_validator("ticker")
     @classmethod
     def ticker_not_empty(cls, v: str) -> str:
         return validate_non_empty(v, "ticker")
-
-    @field_validator("start", "end")
-    @classmethod
-    def date_format(cls, v: Optional[str]) -> Optional[str]:
-        if v is None or not v.strip():
-            return v
-        if not DATE_PATTERN.match(v.strip()):
-            raise ValueError("must be YYYY-MM-DD")
-        return v.strip()
 
     @field_validator("interval")
     @classmethod
@@ -47,8 +36,8 @@ class CalculateTechnicalIndicatorsInput(BaseModel):
 
 def _cache_key_ta(*args, **kwargs) -> str:
     ticker = kwargs.get("ticker") or (args[0] if args else "") or ""
-    start = kwargs.get("analysis_start") or kwargs.get("start") or ""
-    end = kwargs.get("analysis_end") or kwargs.get("end") or ""
+    start = kwargs.get("analysis_start") or ""
+    end = kwargs.get("analysis_end") or ""
     interval = kwargs.get("interval", "1d")
     return f"{ticker}_{start}_{end}_{interval}"
 
@@ -57,41 +46,27 @@ def _cache_key_ta(*args, **kwargs) -> str:
 @cached(key_prefix="ta", ttl=3600, key_extra=_cache_key_ta)
 async def calculate_technical_indicators(
     ticker: str,
-    start: Optional[str] = None,
-    end: Optional[str] = None,
     interval: str = "1d",
     analysis_start: Annotated[Optional[str], InjectedState("analysis_start")] = None,
     analysis_end: Annotated[Optional[str], InjectedState("analysis_end")] = None,
 ) -> dict:
     """
     Calculate technical indicators for a stock: moving averages, RSI, MACD, Stochastic, ATR, etc.
-    - ticker: Stock symbol
-    - start: Start date, format YYYY-MM-DD (optional; can come from state.analysis_start)
-    - end: End date, format YYYY-MM-DD (optional; can come from state.analysis_end)
-    - interval: Data granularity, supports 1d / 1wk / 1mo (default 1d)
-    Returns current values of common indicators and derived trading signals.
-    Insufficient data or failed calculations are shown as "--".
-    Useful for technical analysis, signal generation, and trend identification.
-    
-    Examples:
-    - calculate_technical_indicators("AAPL", start="2024-01-01", end="2024-03-31")  # Q1 data
-    - calculate_technical_indicators("AAPL", start="2023-01-01", end="2024-01-01")  # 1 year of data
+    Time range from state analysis_start/analysis_end.
     """
-    use_start = analysis_start or start
-    use_end = analysis_end or end
-    if not use_start or not use_end:
-        return {"error": "start and end are required; provide them or set state.analysis_start and analysis_end"}
+    if not analysis_start or not analysis_end:
+        return {"error": "analysis_start and analysis_end are required in state"}
     try:
         import pandas_ta as ta
 
-        time_range = f"start={use_start}, end={use_end}"
+        time_range = f"start={analysis_start}, end={analysis_end}"
         logger.info(
             f"[calculate_technical_indicators] Start calculating indicators for {ticker}: "
             f"{time_range}, interval={interval}"
         )
         tk = yf.Ticker(ticker)
         hist = await run_sync(
-            lambda: tk.history(start=use_start, end=use_end, interval=interval)
+            lambda: tk.history(start=analysis_start, end=analysis_end, interval=interval)
         )
 
         if hist.empty:

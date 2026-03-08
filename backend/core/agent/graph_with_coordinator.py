@@ -19,6 +19,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langchain_core.messages import AIMessage, SystemMessage
 
 from core.agent.state import AgentState
+from checkpoint import get_checkpointer
 from core.agent.coordinator import (
     coordinator_node,
     should_use_tools,
@@ -42,8 +43,8 @@ tool_retry_policy = RetryPolicy(
     retry_on=(Exception,),
 )
 
-# Checkpointer for durable execution
-checkpointer = InMemorySaver()
+def _get_checkpointer():
+    return get_checkpointer() or InMemorySaver()
 
 
 RESPONSE_LANGUAGE_NAMES = {
@@ -229,7 +230,8 @@ def build_agent_with_coordinator():
     
     workflow.add_edge("tracker", "validator")
     workflow.add_edge("validator", END)
-    
+
+    checkpointer = _get_checkpointer()
     return workflow.compile(checkpointer=checkpointer)
 
 
