@@ -13,6 +13,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='repla
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from langchain_core.messages import HumanMessage
 from core.agent.graph_with_coordinator import get_agent_with_coordinator
 
 
@@ -21,7 +22,6 @@ async def test_agent_output():
     
     agent = get_agent_with_coordinator()
     
-    # Test question
     question = "什么是市盈率"
     
     print("=" * 70)
@@ -33,7 +33,7 @@ async def test_agent_output():
     config = {"configurable": {"thread_id": "test-001"}}
     
     result = await agent.ainvoke(
-        {"messages": [{"role": "user", "content": question}]},
+        {"messages": [HumanMessage(content=question)]},
         config
     )
     

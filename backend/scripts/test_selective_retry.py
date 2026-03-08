@@ -2,10 +2,14 @@
 
 import asyncio
 import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
-from core.agent.graph_with_coordinator import build_agent_with_coordinator
 from core.agent.state import AgentState
 
 logging.basicConfig(
@@ -343,171 +347,6 @@ async def main():
         logger.info("Summary")
         logger.info("="*60)
         logger.info(f"Selective retry: {'✓ pass' if test_passed else '✗ fail'}")
-        logger.info("="*60 + "\n")
-
-    except Exception as e:
-        logger.error(f"Test failed: {e}", exc_info=True)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-
-
-
-async def test_selective_retry():
-    """Test: only failed tools are retried, successful tools not re-executed."""
-
-    logger.info("\n" + "="*60)
-    logger.info("Test: selective retry")
-    logger.info("="*60 + "\n")
-    
-    # Track tool call counts
-    call_counts = {
-        "get_real_time_quote": 0,
-        "get_company_fundamentals": 0,
-        "calculate_technical_indicators": 0,
-    }
-    
-    # Original function refs
-    original_quote = get_real_time_quote.func
-    original_fundamentals = get_company_fundamentals.func
-    
-    # Mock: first call fails, second succeeds
-    fundamentals_call_count = 0
-
-    async def mock_fundamentals(ticker: str):
-        nonlocal fundamentals_call_count
-        fundamentals_call_count += 1
-        call_counts["get_company_fundamentals"] += 1
-
-        logger.info(f"[MOCK] get_company_fundamentals called (count {fundamentals_call_count})")
-
-        if fundamentals_call_count == 1:
-            logger.warning("[MOCK] get_company_fundamentals simulated failure")
-            return {"error": "simulated network error"}
-        else:
-            logger.info("[MOCK] get_company_fundamentals success")
-            return await original_fundamentals(ticker)
-    
-    async def mock_quote(ticker: str):
-        call_counts["get_real_time_quote"] += 1
-        logger.info(f"[MOCK] get_real_time_quote called (count {call_counts['get_real_time_quote']})")
-        return await original_quote(ticker)
-    
-    # Patch tool functions
-    with patch('skills.fundamentals.tool.get_company_fundamentals.func', new=mock_fundamentals), \
-         patch('skills.market_data.tool.get_real_time_quote.func', new=mock_quote):
-
-        agent = get_agent_with_coordinator()
-
-        test_query = "Analyze AAPL: get real-time quote and fundamentals"
-
-        logger.info(f"Test query: {test_query}\n")
-        
-        result = await agent.ainvoke({
-            "messages": [HumanMessage(content=test_query)],
-            "max_retries": 2,
-        })
-        
-        logger.info("\n" + "="*60)
-        logger.info("Test result")
-        logger.info("="*60)
-
-        logger.info("\nTool call counts:")
-        logger.info(f"  get_real_time_quote: {call_counts['get_real_time_quote']} calls")
-        logger.info(f"  get_company_fundamentals: {call_counts['get_company_fundamentals']} calls")
-
-        success = True
-
-        if call_counts['get_real_time_quote'] == 1:
-            logger.info("✓ get_real_time_quote called 1 time (expected)")
-        else:
-            logger.error(f"✗ get_real_time_quote called {call_counts['get_real_time_quote']} times (expected 1)")
-            success = False
-
-        if call_counts['get_company_fundamentals'] == 2:
-            logger.info("✓ get_company_fundamentals called 2 times (1 fail + 1 retry, expected)")
-        else:
-            logger.error(f"✗ get_company_fundamentals called {call_counts['get_company_fundamentals']} times (expected 2)")
-            success = False
-
-        error_count = result.get("error_count", 0)
-        logger.info(f"\nError count: {error_count}")
-
-        failed_tools = result.get("failed_tools", [])
-        if not failed_tools:
-            logger.info("✓ All tools eventually succeeded")
-        else:
-            logger.warning(f"⚠ Still failed tools: {failed_tools}")
-
-        logger.info("\n" + "="*60)
-        if success:
-            logger.info("✓ Pass: only failed tools were retried")
-        else:
-            logger.error("✗ Fail: retry logic did not match expectation")
-        logger.info("="*60 + "\n")
-        
-        return success
-
-
-async def test_max_retries():
-    """Test: stop retrying after max retries."""
-
-    logger.info("\n" + "="*60)
-    logger.info("Test: max retry limit")
-    logger.info("="*60 + "\n")
-
-    call_count = 0
-
-    async def always_fail_fundamentals(ticker: str):
-        nonlocal call_count
-        call_count += 1
-        logger.info(f"[MOCK] get_company_fundamentals called (count {call_count}) - always fails")
-        return {"error": "persistent failure"}
-
-    with patch('skills.fundamentals.tool.get_company_fundamentals.func', new=always_fail_fundamentals):
-        agent = get_agent_with_coordinator()
-
-        test_query = "Get AAPL fundamentals"
-
-        result = await agent.ainvoke({
-            "messages": [HumanMessage(content=test_query)],
-            "max_retries": 2,
-        })
-
-        logger.info("\n" + "="*60)
-        logger.info("Test result")
-        logger.info("="*60)
-        logger.info(f"Tool calls: {call_count}")
-        logger.info(f"Error count: {result.get('error_count', 0)}")
-        logger.info(f"Failed tools: {result.get('failed_tools', [])}")
-
-        if call_count == 3:
-            logger.info("✓ Stopped after max retries (1 initial + 2 retries = 3)")
-            return True
-        else:
-            logger.error(f"✗ Call count unexpected: {call_count} (expected 3)")
-            return False
-
-
-async def main():
-    """Main test entry (suite)."""
-
-    logger.info("\n" + "="*60)
-    logger.info("Selective retry test suite")
-    logger.info("="*60 + "\n")
-
-    try:
-        test1_passed = await test_selective_retry()
-        await asyncio.sleep(2)
-
-        test2_passed = await test_max_retries()
-
-        logger.info("\n" + "="*60)
-        logger.info("Summary")
-        logger.info("="*60)
-        logger.info(f"Test 1 (selective retry): {'✓ pass' if test1_passed else '✗ fail'}")
-        logger.info(f"Test 2 (max retries): {'✓ pass' if test2_passed else '✗ fail'}")
         logger.info("="*60 + "\n")
 
     except Exception as e:

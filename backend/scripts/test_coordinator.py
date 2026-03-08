@@ -1,8 +1,23 @@
 """Test coordinator tool-call consistency."""
 
 import asyncio
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from langchain_core.messages import HumanMessage
-from core.agent.graph import get_agent
+from core.agent.graph_with_coordinator import get_agent_with_coordinator
+
+
+def _executed_tool_names(executed_tools):
+    """Normalize executed_tools to list of tool names (state may store list of dicts)."""
+    if not executed_tools:
+        return []
+    first = executed_tools[0]
+    if isinstance(first, dict):
+        return [t.get("tool", "") for t in executed_tools if t.get("tool")]
+    return list(executed_tools)
 
 
 async def test_coordinator_consistency():
@@ -26,7 +41,7 @@ async def test_coordinator_consistency():
         },
     ]
 
-    agent = get_agent()
+    agent = get_agent_with_coordinator()
 
     for i, test_case in enumerate(test_cases, 1):
         print(f"\n{'='*80}")
@@ -40,7 +55,8 @@ async def test_coordinator_consistency():
         try:
             result = await agent.ainvoke(state)
 
-            executed_tools = result.get("executed_tools", [])
+            executed_raw = result.get("executed_tools", [])
+            executed_tools = _executed_tool_names(executed_raw)
             tool_plan = result.get("tool_plan", [])
             planned_tools = [t["tool"] for t in tool_plan]
 

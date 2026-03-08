@@ -1,10 +1,14 @@
 """Test async tool execution performance and error handling."""
 
 import asyncio
-import time
 import logging
-from langchain_core.messages import HumanMessage
+import sys
+import time
+from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from langchain_core.messages import HumanMessage
 from core.agent.graph_with_coordinator import get_agent_with_coordinator
 
 logging.basicConfig(
