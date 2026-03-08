@@ -1,10 +1,11 @@
 """Market data skill — real-time quotes and historical OHLCV data."""
 
 import logging
-from typing import Optional
+from typing import Annotated, Optional
 
 import yfinance as yf
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from services.cache_service import cached
@@ -70,8 +71,12 @@ class GetHistoricalPricesInput(BaseModel):
         return self
 
 
+def _cache_key_quote(*args, **kwargs) -> str:
+    return (kwargs.get("ticker") or (args[0] if args else "") or "").strip()
+
+
 @tool(args_schema=GetRealTimeQuoteInput)
-@cached(key_prefix="quote", ttl=60)
+@cached(key_prefix="quote", ttl=60, key_extra=_cache_key_quote)
 async def get_real_time_quote(ticker: str) -> dict:
     """
     Fetch real-time stock quote and basic information.
@@ -122,14 +127,27 @@ async def get_real_time_quote(ticker: str) -> dict:
         return {"error": f"Failed to fetch real-time quote: {str(e)}"}
 
 
+def _cache_key_ohlcv(*args, **kwargs) -> str:
+    ticker = kwargs.get("ticker") or (args[0] if args else "") or ""
+    period = kwargs.get("period") or ""
+    start = kwargs.get("analysis_start") or kwargs.get("start") or ""
+    end = kwargs.get("analysis_end") or kwargs.get("end") or ""
+    interval = kwargs.get("interval", "1d")
+    if start and end:
+        return f"{ticker}_{start}_{end}_{interval}"
+    return f"{ticker}_{period}_{interval}"
+
+
 @tool(args_schema=GetHistoricalPricesInput)
-@cached(key_prefix="ohlcv", ttl=3600)
+@cached(key_prefix="ohlcv", ttl=3600, key_extra=_cache_key_ohlcv)
 async def get_historical_prices(
     ticker: str,
     period: Optional[str] = None,
     start: Optional[str] = None,
     end: Optional[str] = None,
     interval: str = "1d",
+    analysis_start: Annotated[Optional[str], InjectedState("analysis_start")] = None,
+    analysis_end: Annotated[Optional[str], InjectedState("analysis_end")] = None,
 ) -> dict:
     """
     Fetch historical OHLCV price data.
@@ -146,25 +164,27 @@ async def get_historical_prices(
     - get_historical_prices("AAPL", period="1mo")  # last 1 month
     - get_historical_prices("AAPL", start="2024-03-15", end="2024-03-21")  # explicit date range
     """
-    if not period and not start:
+    use_start = analysis_start or start
+    use_end = analysis_end or end
+    if not period and not use_start:
         period = "1mo"
 
-    if period:
+    if period and not (use_start and use_end):
         time_range = f"period={period}"
         logger.info(f"[get_historical_prices] Fetching historical data for {ticker}: period={period}, interval={interval}")
     else:
-        time_range = f"start={start}, end={end}"
+        time_range = f"start={use_start}, end={use_end}"
         logger.info(
             f"[get_historical_prices] Fetching historical data for {ticker}: "
-            f"start={start}, end={end}, interval={interval}"
+            f"start={use_start}, end={use_end}, interval={interval}"
         )
     
     try:
         tk = yf.Ticker(ticker)
-        if period:
+        if period and not (use_start and use_end):
             hist = await run_sync(lambda: tk.history(period=period, interval=interval))
         else:
-            hist = await run_sync(lambda: tk.history(start=start, end=end, interval=interval))
+            hist = await run_sync(lambda: tk.history(start=use_start, end=use_end, interval=interval))
 
         if hist.empty:
             logger.warning(f"[get_historical_prices] No historical data found for {ticker}")

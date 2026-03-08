@@ -31,7 +31,7 @@ from skills import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
 
-# ToolNode with built-in parallel execution, timeout, and error handling
+# ToolNode injects state (e.g. analysis_start/analysis_end) into tools via InjectedState
 tool_node = ToolNode(ALL_TOOLS)
 
 # Retry policy for tool execution

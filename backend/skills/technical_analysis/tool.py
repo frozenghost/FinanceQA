@@ -1,10 +1,12 @@
 """Technical analysis skill — indicators, patterns, and signals."""
 
 import logging
+from typing import Annotated, Optional
 
 import pandas as pd
 import yfinance as yf
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field, field_validator
 
 from services.cache_service import cached
@@ -17,8 +19,8 @@ class CalculateTechnicalIndicatorsInput(BaseModel):
     """Schema for calculate_technical_indicators."""
 
     ticker: str = Field(description="Stock symbol")
-    start: str = Field(description="Start date YYYY-MM-DD (required)")
-    end: str = Field(description="End date YYYY-MM-DD (required)")
+    start: Optional[str] = Field(default=None, description="Start date YYYY-MM-DD (optional if state has analysis_start)")
+    end: Optional[str] = Field(default=None, description="End date YYYY-MM-DD (optional if state has analysis_end)")
     interval: str = Field(default="1d", description="Granularity: 1d / 1wk / 1mo")
 
     @field_validator("ticker")
@@ -28,8 +30,10 @@ class CalculateTechnicalIndicatorsInput(BaseModel):
 
     @field_validator("start", "end")
     @classmethod
-    def date_format(cls, v: str) -> str:
-        if not v or not DATE_PATTERN.match(v.strip()):
+    def date_format(cls, v: Optional[str]) -> Optional[str]:
+        if v is None or not v.strip():
+            return v
+        if not DATE_PATTERN.match(v.strip()):
             raise ValueError("must be YYYY-MM-DD")
         return v.strip()
 
@@ -41,100 +45,102 @@ class CalculateTechnicalIndicatorsInput(BaseModel):
         return v
 
 
+def _cache_key_ta(*args, **kwargs) -> str:
+    ticker = kwargs.get("ticker") or (args[0] if args else "") or ""
+    start = kwargs.get("analysis_start") or kwargs.get("start") or ""
+    end = kwargs.get("analysis_end") or kwargs.get("end") or ""
+    interval = kwargs.get("interval", "1d")
+    return f"{ticker}_{start}_{end}_{interval}"
+
+
 @tool(args_schema=CalculateTechnicalIndicatorsInput)
-@cached(key_prefix="ta", ttl=3600)
+@cached(key_prefix="ta", ttl=3600, key_extra=_cache_key_ta)
 async def calculate_technical_indicators(
     ticker: str,
-    start: str,
-    end: str,
-    interval: str = "1d"
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    interval: str = "1d",
+    analysis_start: Annotated[Optional[str], InjectedState("analysis_start")] = None,
+    analysis_end: Annotated[Optional[str], InjectedState("analysis_end")] = None,
 ) -> dict:
     """
     Calculate technical indicators for a stock: moving averages, RSI, MACD, Stochastic, ATR, etc.
     - ticker: Stock symbol
-    - start: Start date, format YYYY-MM-DD (required)
-    - end: End date, format YYYY-MM-DD (required)
+    - start: Start date, format YYYY-MM-DD (optional; can come from state.analysis_start)
+    - end: End date, format YYYY-MM-DD (optional; can come from state.analysis_end)
     - interval: Data granularity, supports 1d / 1wk / 1mo (default 1d)
     Returns current values of common indicators and derived trading signals.
+    Insufficient data or failed calculations are shown as "--".
     Useful for technical analysis, signal generation, and trend identification.
-    
-    Note: enough data points are required:
-    - Daily data: at least 20 trading days (~1 month)
-    - Weekly data: at least 20 weeks (~5 months)
-    - Monthly data: at least 20 months (~2 years)
     
     Examples:
     - calculate_technical_indicators("AAPL", start="2024-01-01", end="2024-03-31")  # Q1 data
     - calculate_technical_indicators("AAPL", start="2023-01-01", end="2024-01-01")  # 1 year of data
     """
+    use_start = analysis_start or start
+    use_end = analysis_end or end
+    if not use_start or not use_end:
+        return {"error": "start and end are required; provide them or set state.analysis_start and analysis_end"}
     try:
         import pandas_ta as ta
 
-        time_range = f"start={start}, end={end}"
+        time_range = f"start={use_start}, end={use_end}"
         logger.info(
             f"[calculate_technical_indicators] Start calculating indicators for {ticker}: "
             f"{time_range}, interval={interval}"
         )
         tk = yf.Ticker(ticker)
         hist = await run_sync(
-            lambda: tk.history(start=start, end=end, interval=interval)
+            lambda: tk.history(start=use_start, end=use_end, interval=interval)
         )
 
         if hist.empty:
             return {"error": f"No historical data found for {ticker}"}
 
         data_points = len(hist)
-        
-        # Adjust indicator parameters dynamically based on data size
-        if data_points < 20:
-            return {
-                "error": (
-                    "Not enough data to compute technical indicators "
-                    f"(need at least 20 points, got {data_points}). Consider expanding the time range."
-                )
-            }
-        
         df = hist.copy()
         
         # Drop rows with NaN in Close price to ensure valid calculations
         df = df.dropna(subset=["Close"])
         data_points = len(df)
         
-        # Dynamically derive indicator parameters (avoid exceeding available points)
-        # Moving averages: use fractions of data length
-        sma_short = min(5, max(3, data_points // 12))  # short-term MA: ~1/12 of data
-        sma_mid = min(20, max(5, data_points // 3))    # mid-term MA: ~1/3 of data
-        sma_long = min(60, max(10, data_points * 2 // 3))  # long-term MA: ~2/3 of data
-        
-        ema_fast = min(12, max(5, data_points // 5))
-        ema_slow = min(26, max(10, data_points // 2))
-        
-        rsi_period = min(14, max(7, data_points // 4))
-        atr_period = min(14, max(7, data_points // 4))
-        stoch_period = min(14, max(7, data_points // 4))
+        NA = "--"
 
-        # Moving averages
+        def _safe_float(val, decimals: int = 2):
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                return NA
+            try:
+                return round(float(val), decimals)
+            except (TypeError, ValueError):
+                return NA
+
+        # Dynamically derive indicator parameters (avoid exceeding available points)
+        sma_short = min(5, max(2, data_points // 12)) if data_points >= 2 else 2
+        sma_mid = min(20, max(2, data_points // 3)) if data_points >= 2 else 2
+        sma_long = min(60, max(2, data_points * 2 // 3)) if data_points >= 2 else 2
+        ema_fast = min(12, max(2, data_points // 5)) if data_points >= 2 else 2
+        ema_slow = min(26, max(2, data_points // 2)) if data_points >= 2 else 2
+        rsi_period = min(14, max(2, data_points // 4)) if data_points >= 2 else 2
+        atr_period = min(14, max(2, data_points // 4)) if data_points >= 2 else 2
+        stoch_period = min(14, max(2, data_points // 4)) if data_points >= 2 else 2
+
+        # Moving averages (may produce NaN if insufficient data)
         df["SMA_short"] = ta.sma(df["Close"], length=sma_short)
         df["SMA_mid"] = ta.sma(df["Close"], length=sma_mid)
         df["SMA_long"] = ta.sma(df["Close"], length=sma_long)
         df["EMA_fast"] = ta.ema(df["Close"], length=ema_fast)
         df["EMA_slow"] = ta.ema(df["Close"], length=ema_slow)
-
-        # RSI
         df["RSI"] = ta.rsi(df["Close"], length=rsi_period)
 
-        # MACD (only calculate when enough data)
-        if data_points >= 35:
+        if data_points >= 9:
             macd = ta.macd(df["Close"], fast=ema_fast, slow=ema_slow, signal=9)
             if macd is not None:
                 df = pd.concat([df, macd], axis=1)
 
-        # Stochastic Oscillator
         stoch = ta.stoch(df["High"], df["Low"], df["Close"], k=stoch_period, d=3)
         if stoch is not None:
             df = pd.concat([df, stoch], axis=1)
 
-        # ATR (Volatility)
         df["ATR"] = ta.atr(df["High"], df["Low"], df["Close"], length=atr_period)
 
         latest = df.iloc[-1]
@@ -257,23 +263,23 @@ async def calculate_technical_indicators(
             },
             "indicators": {
                 "moving_averages": {
-                    f"SMA_{sma_short}": round(float(sma_short_val), 2) if pd.notna(sma_short_val) else None,
-                    f"SMA_{sma_mid}": round(float(sma_mid_val), 2) if pd.notna(sma_mid_val) else None,
-                    f"SMA_{sma_long}": round(float(sma_long_val), 2) if pd.notna(sma_long_val) else None,
-                    f"EMA_{ema_fast}": round(float(latest.get("EMA_fast")), 2) if pd.notna(latest.get("EMA_fast")) else None,
-                    f"EMA_{ema_slow}": round(float(latest.get("EMA_slow")), 2) if pd.notna(latest.get("EMA_slow")) else None,
+                    f"SMA_{sma_short}": _safe_float(sma_short_val),
+                    f"SMA_{sma_mid}": _safe_float(sma_mid_val),
+                    f"SMA_{sma_long}": _safe_float(sma_long_val),
+                    f"EMA_{ema_fast}": _safe_float(latest.get("EMA_fast")),
+                    f"EMA_{ema_slow}": _safe_float(latest.get("EMA_slow")),
                 },
                 "momentum": {
-                    f"RSI_{rsi_period}": round(float(rsi), 2) if pd.notna(rsi) else None,
-                    f"STOCH_{stoch_period}": round(float(stoch_k), 2) if pd.notna(stoch_k) else None,
+                    f"RSI_{rsi_period}": _safe_float(rsi),
+                    f"STOCH_{stoch_period}": _safe_float(stoch_k),
                 },
                 "trend": {
-                    "MACD": round(float(macd_val), 4) if pd.notna(macd_val) else None,
-                    "MACD_signal": round(float(macd_signal), 4) if pd.notna(macd_signal) else None,
-                    "MACD_histogram": round(float(macd_hist), 4) if pd.notna(macd_hist) else None,
+                    "MACD": _safe_float(macd_val, 4),
+                    "MACD_signal": _safe_float(macd_signal, 4),
+                    "MACD_histogram": _safe_float(macd_hist, 4),
                 },
                 "volatility": {
-                    f"ATR_{atr_period}": round(float(latest.get("ATR")), 2) if pd.notna(latest.get("ATR")) else None,
+                    f"ATR_{atr_period}": _safe_float(latest.get("ATR")),
                 },
             },
             "signals": signals,

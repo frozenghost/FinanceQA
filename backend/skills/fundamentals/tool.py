@@ -2,17 +2,22 @@
 
 import asyncio
 import logging
-from typing import Any, Optional
+from datetime import datetime, timedelta
+from typing import Annotated, Any, Optional
 
 import pandas as pd
 import yfinance as yf
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field, field_validator
 
 from services.cache_service import cached
 from skills.common import run_sync, validate_non_empty
 
 logger = logging.getLogger(__name__)
+
+# Max gap between latest earnings and analysis window: one quarter (days)
+MAX_EARNINGS_QUARTER_DAYS = 92
 
 
 class GetCompanyFundamentalsInput(BaseModel):
@@ -37,8 +42,12 @@ class GetEarningsHistoryInput(BaseModel):
         return validate_non_empty(v, "ticker")
 
 
+def _cache_key_fundamentals(*args, **kwargs) -> str:
+    return (kwargs.get("ticker") or (args[0] if args else "") or "").strip()
+
+
 @tool(args_schema=GetCompanyFundamentalsInput)
-@cached(key_prefix="fundamentals", ttl=86400)
+@cached(key_prefix="fundamentals", ttl=86400, key_extra=_cache_key_fundamentals)
 async def get_company_fundamentals(ticker: str) -> dict:
     """
     Get company fundamental data and financial metrics.
@@ -155,13 +164,130 @@ def _income_quarter(
     return out
 
 
+def _parse_date(s: Optional[str]) -> Optional[datetime]:
+    if not s or not isinstance(s, str):
+        return None
+    s = s.strip()[:10]
+    if len(s) != 10:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _latest_earnings_date(result: dict) -> Optional[datetime]:
+    dates: list[datetime] = []
+    for q in result.get("quarterly") or []:
+        d = _parse_date(q.get("date"))
+        if d:
+            dates.append(d)
+    for e in result.get("earnings_dates") or []:
+        d = _parse_date(e.get("date") or e.get("earnings_date"))
+        if d:
+            dates.append(d)
+    for e in result.get("earnings_surprise") or []:
+        d = _parse_date(e.get("date"))
+        if d:
+            dates.append(d)
+    return max(dates) if dates else None
+
+
+def _in_earnings_window(d: Optional[datetime], window_start: datetime, window_end: datetime) -> bool:
+    if d is None:
+        return False
+    return window_start <= d <= window_end
+
+
+def _filter_earnings_by_window(result: dict, analysis_start: str, analysis_end: str) -> None:
+    """Keep only earnings within [analysis_start - 92d, analysis_end + 92d]; rebuild chart_series."""
+    start_d = _parse_date(analysis_start)
+    end_d = _parse_date(analysis_end)
+    if not start_d or not end_d:
+        return
+    window_start = start_d - timedelta(days=MAX_EARNINGS_QUARTER_DAYS)
+    window_end = end_d + timedelta(days=MAX_EARNINGS_QUARTER_DAYS)
+
+    def filter_quarterly() -> None:
+        q_list = result.get("quarterly") or []
+        kept = [row for row in q_list if _in_earnings_window(_parse_date(row.get("date")), window_start, window_end)]
+        result["quarterly"] = kept
+        cs_q = result["chart_series"]["quarterly"]
+        cs_q["labels"] = [r["date"] for r in kept]
+        cs_q["revenue"] = [r.get("revenue") for r in kept]
+        cs_q["earnings"] = [r.get("earnings") for r in kept]
+        cs_q["eps"] = [r.get("eps") for r in kept]
+        cs_q["profit_margin"] = [r.get("profit_margin") for r in kept]
+        cs_q["operating_margin"] = [r.get("operating_margin") for r in kept]
+
+    def filter_annual() -> None:
+        a_list = result.get("annual") or []
+        cs_a = result["chart_series"]["annual"]
+        kept = []
+        for i, row in enumerate(a_list):
+            year_s = row.get("year") or row.get("date")
+            if year_s:
+                try:
+                    d = datetime.strptime(str(year_s).strip()[:4], "%Y")
+                except ValueError:
+                    d = None
+            else:
+                d = None
+            if _in_earnings_window(d, window_start, window_end):
+                kept.append(row)
+        result["annual"] = kept
+        cs_a["labels"] = [r.get("year") for r in kept]
+        cs_a["revenue"] = [r.get("revenue") for r in kept]
+        cs_a["earnings"] = [r.get("earnings") for r in kept]
+        cs_a["eps"] = [r.get("eps") for r in kept]
+        cs_a["profit_margin"] = [r.get("profit_margin") for r in kept]
+        cs_a["operating_margin"] = [r.get("operating_margin") for r in kept]
+
+    def filter_surprise() -> None:
+        e_list = result.get("earnings_surprise") or []
+        cs_e = result["chart_series"]["eps_surprise"]
+        kept = [e for e in e_list if _in_earnings_window(_parse_date(e.get("date")), window_start, window_end)]
+        result["earnings_surprise"] = kept
+        cs_e["dates"] = [e.get("date") for e in kept]
+        cs_e["eps_actual"] = [e.get("epsActual") for e in kept]
+        cs_e["eps_estimate"] = [e.get("epsEstimate") for e in kept]
+        cs_e["surprise_percent"] = [e.get("surprise_percent") for e in kept]
+
+    def filter_dates() -> None:
+        e_list = result.get("earnings_dates") or []
+        kept = [
+            e for e in e_list
+            if _in_earnings_window(
+                _parse_date(e.get("date") or e.get("earnings_date")), window_start, window_end
+            )
+        ]
+        result["earnings_dates"] = kept
+
+    filter_quarterly()
+    filter_annual()
+    filter_surprise()
+    filter_dates()
+
+
+def _cache_key_earnings(*args, **kwargs) -> str:
+    ticker = (kwargs.get("ticker") or (args[0] if args else "") or "").strip()
+    start = kwargs.get("analysis_start") or ""
+    end = kwargs.get("analysis_end") or ""
+    return f"{ticker}_{start}_{end}"
+
+
 @tool(args_schema=GetEarningsHistoryInput)
-@cached(key_prefix="earnings", ttl=86400)
-async def get_earnings_history(ticker: str) -> dict:
+@cached(key_prefix="earnings", ttl=86400, key_extra=_cache_key_earnings)
+async def get_earnings_history(
+    ticker: str,
+    analysis_start: Annotated[Optional[str], InjectedState("analysis_start")] = None,
+    analysis_end: Annotated[Optional[str], InjectedState("analysis_end")] = None,
+) -> dict:
     """
     Get company historical earnings data (quarterly and annual) plus EPS surprise history.
     - ticker: Stock symbol
     Returns revenue, net income, operating income, margins, EPS, and chart-ready time series.
+    When state has analysis_start/analysis_end, only returns earnings if the latest report is within one quarter of the analysis window; otherwise returns no_earnings_in_range.
     Suitable for earnings analysis, trend evaluation, YoY/QoQ comparisons, and frontend charts.
     """
     logger.info(f"[get_earnings_history] Starting to fetch earnings history for {ticker}")
@@ -252,6 +378,32 @@ async def get_earnings_history(ticker: str) -> dict:
         if not result["quarterly"] and not result["annual"] and not result["earnings_surprise"]:
             logger.warning(f"[get_earnings_history] No earnings data found for {ticker}")
             return {"error": f"No earnings data found for {ticker}"}
+
+        if analysis_start and analysis_end:
+            start_d = _parse_date(analysis_start)
+            latest = _latest_earnings_date(result)
+            if start_d and latest:
+                gap_days = (start_d - latest).days
+                if gap_days > MAX_EARNINGS_QUARTER_DAYS:
+                    logger.info(
+                        f"[get_earnings_history] Latest earnings {latest.date()} is {gap_days} days before analysis start {analysis_start}; beyond one quarter, returning no_earnings_in_range"
+                    )
+                    return {
+                        "ticker": ticker,
+                        "quarterly": [],
+                        "annual": [],
+                        "earnings_surprise": [],
+                        "earnings_dates": [],
+                        "chart_series": {
+                            "quarterly": {"labels": [], "revenue": [], "earnings": [], "eps": [], "profit_margin": [], "operating_margin": []},
+                            "annual": {"labels": [], "revenue": [], "earnings": [], "eps": [], "profit_margin": [], "operating_margin": []},
+                            "eps_surprise": {"dates": [], "eps_actual": [], "eps_estimate": [], "surprise_percent": []},
+                        },
+                        "no_earnings_in_range": True,
+                        "reason": "Latest earnings report is more than one quarter before the analysis time window.",
+                        "data_source": "Financial Data Service",
+                    }
+            _filter_earnings_by_window(result, analysis_start, analysis_end)
 
         logger.info(
             f"[get_earnings_history] Successfully fetched {ticker} earnings: "

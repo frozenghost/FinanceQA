@@ -17,6 +17,8 @@ class AgentState(MessagesState):
     needs_tools: bool = False
     response_language: Optional[str] = None
     coordination_reasoning: str = ""
+    analysis_start: Optional[str] = None
+    analysis_end: Optional[str] = None
     coordinator_raw_output: str = ""
     coordinator_markdown: str = ""
     executed_tools: list[str] = []

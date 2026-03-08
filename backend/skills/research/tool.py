@@ -242,8 +242,14 @@ async def search_knowledge_base(query: str, top_k: int = 5) -> dict:
         return {"query": query, "results": [], "error": f"Retrieval failed: {str(e)}"}
 
 
+def _cache_key_web(*args, **kwargs) -> str:
+    query = (kwargs.get("query") or (args[0] if args else "") or "")[:80].replace(" ", "_")
+    max_results = kwargs.get("max_results", 5)
+    return f"{query}_{max_results}"
+
+
 @tool(args_schema=SearchWebInput)
-@cached(key_prefix="web", ttl=900)
+@cached(key_prefix="web", ttl=900, key_extra=_cache_key_web)
 async def search_web(query: str, max_results: int = 5) -> dict:
     """
     Real-time web search via Tavily.

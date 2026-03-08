@@ -9,7 +9,8 @@ import functools
 import hashlib
 import json
 import logging
-from typing import Optional
+import re
+from typing import Callable, Optional
 
 import redis
 
@@ -39,17 +40,38 @@ def get_redis() -> Optional[redis.Redis]:
     return _r
 
 
-def cached(key_prefix: str, ttl: int):
+def _safe_key_part(s: str, max_len: int = 120) -> str:
+    """Sanitize string for use in Redis key (alphanumeric, dash, underscore only)."""
+    if not s:
+        return ""
+    s = re.sub(r"[^\w\-]", "_", str(s).strip())[:max_len]
+    return s or "_"
+
+
+def cached(key_prefix: str, ttl: int, key_extra: Optional[Callable[..., str]] = None):
     """
     Universal cache decorator supporting both sync and async functions.
 
-    - Redis available: cache hit → return cached; miss → compute + store.
+    - key_extra: optional callable (*args, **kwargs) -> str to include params (e.g. ticker, time range) in the key to avoid conflicts.
+    - Redis available: cache hit -> return cached; miss -> compute + store.
     - Redis unavailable: pass-through, main path unaffected.
     """
 
     def decorator(func):
         is_async = asyncio.iscoroutinefunction(func)
-        
+
+        def _build_key(raw: str, args: tuple, kwargs: dict) -> str:
+            param_part = ""
+            if key_extra is not None:
+                try:
+                    param_part = _safe_key_part(key_extra(*args, **kwargs))
+                except Exception as e:
+                    logger.warning("cache key_extra failed: %s", e)
+            h = hashlib.md5(raw.encode()).hexdigest()[:12]
+            if param_part:
+                return f"{key_prefix}:{param_part}:{h}"
+            return f"{key_prefix}:{h}"
+
         if is_async:
             @functools.wraps(func)
             async def async_wrapper(*args, **kwargs):
@@ -57,7 +79,7 @@ def cached(key_prefix: str, ttl: int):
                     return await func(*args, **kwargs)
 
                 raw = json.dumps({"a": args, "k": kwargs}, sort_keys=True, default=str)
-                key = f"{key_prefix}:{hashlib.md5(raw.encode()).hexdigest()[:12]}"
+                key = _build_key(raw, args, kwargs)
 
                 # Try read from cache
                 try:
@@ -88,7 +110,7 @@ def cached(key_prefix: str, ttl: int):
                     return func(*args, **kwargs)
 
                 raw = json.dumps({"a": args, "k": kwargs}, sort_keys=True, default=str)
-                key = f"{key_prefix}:{hashlib.md5(raw.encode()).hexdigest()[:12]}"
+                key = _build_key(raw, args, kwargs)
 
                 # Try read from cache
                 try:

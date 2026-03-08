@@ -31,6 +31,8 @@ export interface CoordinatorData {
   }>;
   needs_tools: boolean;
   isComplete?: boolean;
+  analysis_start?: string;
+  analysis_end?: string;
 }
 
 export interface EarningsChartSeries {
@@ -55,6 +57,8 @@ export interface MessageMetadata {
   earnings_surprise?: unknown[];
   earnings_dates?: unknown[];
   chart_series?: EarningsChartSeries;
+  no_earnings_in_range?: boolean;
+  reason?: string;
 }
 
 export interface Message {
@@ -252,19 +256,22 @@ export function useSSEChat(
                   })
                 );
               } else if (data.type === "thinking_complete") {
-                // Coordinator thinking complete - replace with final Markdown
+                // Coordinator thinking complete - replace with final Markdown and analysis window
                 setMessages((prev) =>
                   prev.map((m) => {
                     if (m.id !== assistantId) return m;
+                    const payload = data as { markdown?: string; analysis_start?: string; analysis_end?: string };
                     finalAssistantMsg = {
                       ...m,
                       metadata: {
                         ...m.metadata,
                         coordinator: {
-                          reasoning: data.markdown || "",
+                          reasoning: payload.markdown || "",
                           tool_plan: [],
                           needs_tools: true,
                           isComplete: true,
+                          analysis_start: payload.analysis_start,
+                          analysis_end: payload.analysis_end,
                         },
                       } as MessageMetadata,
                     };

@@ -131,11 +131,22 @@ def _parse_coordinator_output(aimessage: AIMessage) -> dict:
             markdown_parts.extend(tool_plan_md_lines)
         markdown_content = "\n".join(markdown_parts).strip()
         
+        analysis_start = plan.get("analysis_start")
+        analysis_end = plan.get("analysis_end")
+        if analysis_start and not isinstance(analysis_start, str):
+            analysis_start = str(analysis_start) if analysis_start else None
+        if analysis_end and not isinstance(analysis_end, str):
+            analysis_end = str(analysis_end) if analysis_end else None
+        if analysis_start or analysis_end:
+            logger.info("Coordinator analysis window: start=%s, end=%s", analysis_start, analysis_end)
+
         return {
             "tool_plan": tool_plan,
             "needs_tools": plan.get("needs_tools", True),
             "response_language": plan.get("response_language") or None,
             "coordination_reasoning": plan.get("reasoning", ""),
+            "analysis_start": analysis_start or None,
+            "analysis_end": analysis_end or None,
             "coordinator_raw_output": raw_output,
             "coordinator_markdown": markdown_content,
         }
@@ -146,6 +157,8 @@ def _parse_coordinator_output(aimessage: AIMessage) -> dict:
             "needs_tools": True,
             "response_language": None,
             "coordination_reasoning": "Coordinator parsing failed; the agent will decide how to proceed.",
+            "analysis_start": None,
+            "analysis_end": None,
             "coordinator_raw_output": raw_output,
             "coordinator_markdown": raw_output,
         }
@@ -229,6 +242,12 @@ Please choose appropriate tools based on the question type:
 
 **You must strictly follow this plan, call all tools, and only then generate an answer.**
 """
+        analysis_start = state.get("analysis_start")
+        analysis_end = state.get("analysis_end")
+        if analysis_start and analysis_end:
+            enforcement_msg += f"""
+
+**Analysis time window**: {analysis_start} to {analysis_end}. All time-based tools use this range. Only present earnings that fall within this window; if there are no earnings in this window, do not mention or return earnings data."""
         if any(t.get("tool") == "search_knowledge_base" for t in tool_plan):
             enforcement_msg += """
 

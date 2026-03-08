@@ -2,10 +2,12 @@
 
 import asyncio
 import logging
-from typing import Any
+import re
+from typing import Annotated, Any, Optional
 
 import httpx
 from langchain_core.tools import tool
+from langgraph.prebuilt import InjectedState
 from pydantic import BaseModel, Field, field_validator
 
 from config.settings import settings
@@ -110,9 +112,22 @@ def _merge_articles(
     return merged
 
 
+def _cache_key_news(*args, **kwargs) -> str:
+    query = (kwargs.get("query") or (args[0] if args else "") or "")[:60]
+    page_size = kwargs.get("page_size", 10)
+    start = kwargs.get("analysis_start") or ""
+    end = kwargs.get("analysis_end") or ""
+    return f"{query}_{page_size}_{start}_{end}".replace(" ", "_")
+
+
 @tool(args_schema=GetFinancialNewsInput)
-@cached(key_prefix="news", ttl=1800)
-async def get_financial_news(query: str, page_size: int = 10) -> dict:
+@cached(key_prefix="news", ttl=1800, key_extra=_cache_key_news)
+async def get_financial_news(
+    query: str,
+    page_size: int = 10,
+    analysis_start: Annotated[Optional[str], InjectedState("analysis_start")] = None,
+    analysis_end: Annotated[Optional[str], InjectedState("analysis_end")] = None,
+) -> dict:
     """
     Get latest financial news related to the query.
     Returns articles with title, source, url, content, and a ready-made Markdown link per
@@ -121,6 +136,10 @@ async def get_financial_news(query: str, page_size: int = 10) -> dict:
     - query: Search keywords, e.g. company name, industry, event.
     - page_size: Number of news items to return, default 10.
     """
+    if analysis_start and analysis_end:
+        if not re.search(r"20\d{2}", query):
+            query = f"{query} {analysis_start[:7]} {analysis_end[:7]}"
+        logger.info("get_financial_news: time-scoped query=%r", query)
     logger.info("get_financial_news called: query=%r, page_size=%s", query, page_size)
     if not settings.SERPAPI_KEY and not settings.TAVILY_API_KEY:
         logger.warning("Neither SerpAPI nor Tavily key configured")

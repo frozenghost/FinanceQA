@@ -38,6 +38,15 @@ interface Props {
   isThinking?: boolean;
 }
 
+function hasEarningsChartData(metadata: MessageMetadata): boolean {
+  const cs = metadata.chart_series;
+  if (!cs) return false;
+  const q = cs.quarterly?.labels?.length ?? 0;
+  const a = cs.annual?.labels?.length ?? 0;
+  const e = cs.eps_surprise?.dates?.length ?? 0;
+  return q > 0 || a > 0 || e > 0;
+}
+
 export function MessageRenderer({ message, isThinking }: Props) {
   const isUser = message.role === "user";
 
@@ -154,9 +163,11 @@ function MetadataCardsTop({ metadata }: { metadata: MessageMetadata }) {
         <TechnicalCard metadata={metadata} />
       )}
 
-      {/* Earnings card (quarterly/annual + charts) */}
+      {/* Earnings card (quarterly/annual + charts); hide when no data in range */}
       {(metadata.type === "earnings" ||
-        (!!metadata.chart_series && !!metadata.ticker)) && (
+        (!!metadata.chart_series && !!metadata.ticker)) &&
+        !metadata.no_earnings_in_range &&
+        hasEarningsChartData(metadata) && (
         <EarningsCard metadata={metadata} />
       )}
     </div>
@@ -545,6 +556,11 @@ function CoordinatorFold({ coordinator }: { coordinator: MessageMetadata["coordi
       </button>
       {open && (
         <div className="px-4 py-3 bg-slate-950/50">
+          {coordinator.analysis_start && coordinator.analysis_end && (
+            <div className="text-xs text-slate-400 font-mono mb-3 pb-2 border-b border-slate-700/80">
+              Coordinator analysis window: start={coordinator.analysis_start}, end={coordinator.analysis_end}
+            </div>
+          )}
           <div className="prose prose-invert prose-sm max-w-none prose-headings:text-pink-200 prose-headings:text-xs prose-headings:font-semibold prose-headings:uppercase prose-headings:tracking-wider prose-headings:mb-2 prose-p:text-slate-200 prose-p:text-xs prose-p:leading-relaxed prose-ul:text-slate-200 prose-ul:text-xs prose-li:my-1 prose-strong:text-emerald-400 prose-strong:font-semibold">
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}

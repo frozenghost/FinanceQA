@@ -64,11 +64,16 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
                     if metadata.get("langgraph_node") == "coordinator" and not coordinator_data_sent:
                         output = event["data"].get("output", {})
                         if output and isinstance(output, dict):
-                            # Send Markdown content for frontend display
                             markdown_content = output.get("coordinator_markdown", "")
-                            if markdown_content:
-                                # Send a special token to mark coordinator thinking complete
-                                yield f"data: {json.dumps({'type': 'thinking_complete', 'markdown': markdown_content}, default=str)}\n\n"
+                            analysis_start = output.get("analysis_start")
+                            analysis_end = output.get("analysis_end")
+                            if markdown_content or analysis_start or analysis_end:
+                                payload = {"type": "thinking_complete", "markdown": markdown_content or ""}
+                                if analysis_start:
+                                    payload["analysis_start"] = analysis_start
+                                if analysis_end:
+                                    payload["analysis_end"] = analysis_end
+                                yield f"data: {json.dumps(payload, default=str)}\n\n"
                                 coordinator_data_sent = True
 
                 if kind == "on_chat_model_stream":
@@ -156,16 +161,24 @@ async def query_agent(req: QueryRequest) -> StreamingResponse:
                                     "signals": parsed.get("signals"),
                                 }
                             elif "chart_series" in parsed and not parsed.get("error"):
-                                logger.info(f"[query] Found chart_series (earnings) in {tool_name} output")
-                                metadata_payload = {
-                                    "type": "earnings",
-                                    "ticker": parsed.get("ticker"),
-                                    "quarterly": parsed.get("quarterly"),
-                                    "annual": parsed.get("annual"),
-                                    "earnings_surprise": parsed.get("earnings_surprise"),
-                                    "earnings_dates": parsed.get("earnings_dates"),
-                                    "chart_series": parsed.get("chart_series"),
-                                }
+                                if parsed.get("no_earnings_in_range"):
+                                    metadata_payload = {
+                                        "type": "earnings",
+                                        "ticker": parsed.get("ticker"),
+                                        "no_earnings_in_range": True,
+                                        "reason": parsed.get("reason"),
+                                    }
+                                else:
+                                    logger.info(f"[query] Found chart_series (earnings) in {tool_name} output")
+                                    metadata_payload = {
+                                        "type": "earnings",
+                                        "ticker": parsed.get("ticker"),
+                                        "quarterly": parsed.get("quarterly"),
+                                        "annual": parsed.get("annual"),
+                                        "earnings_surprise": parsed.get("earnings_surprise"),
+                                        "earnings_dates": parsed.get("earnings_dates"),
+                                        "chart_series": parsed.get("chart_series"),
+                                    }
                             else:
                                 logger.info(f"[query] No ohlcv or indicators in {tool_name}, keys: {list(parsed.keys())}")
                     except Exception as e:
